@@ -1,0 +1,10 @@
+node_modules/
+.pnpm-store/
+.npm-cache/
+.smoke/
+lib/
+*.tgz
+*.sha256
+coverage/
+playwright-report/
+test-results/

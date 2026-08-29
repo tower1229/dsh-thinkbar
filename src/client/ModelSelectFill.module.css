@@ -1,0 +1,41 @@
+.root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--dsw-static-neutral-bluish-00);
+  opacity: var(--dsh-particle-opacity, 0.8);
+  animation: reasoning-wait-particle-drift var(--dsh-particle-dur, 3s) ease-in-out
+    var(--dsh-particle-delay, 0s) infinite;
+}
+
+@keyframes reasoning-wait-particle-drift {
+  0%,
+  100% {
+    transform: translate(0, 0);
+    opacity: var(--dsh-particle-opacity, 0.8);
+  }
+
+  50% {
+    transform: translate(var(--dsh-particle-dx, 0px), var(--dsh-particle-dy, -2px));
+    opacity: calc(var(--dsh-particle-opacity, 0.8) * 0.5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .particle {
+    animation: none;
+  }
+}
