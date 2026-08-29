@@ -5,7 +5,7 @@ import { join } from 'node:path'
 
 const root = new URL('../', import.meta.url)
 const manifest = JSON.parse(await readFile(new URL('package.json', root), 'utf8'))
-const patch = await readFile(new URL('cordis.patch.yml', root), 'utf8')
+const patch = (await readFile(new URL('cordis.patch.yml', root), 'utf8')).replaceAll('\r\n', '\n')
 const client = await readFile(new URL('lib/client.cjs', root), 'utf8')
 
 const fail = (message) => {

@@ -38,7 +38,8 @@ describe('dsh-thinkbar node half', () => {
 
 describe('bundle composition', () => {
   it('owns one dsh-thinkbar Loader row', () => {
-    expect(readFileSync(new URL('../cordis.patch.yml', import.meta.url), 'utf8')).toBe(
+    const patch = readFileSync(new URL('../cordis.patch.yml', import.meta.url), 'utf8').replaceAll('\r\n', '\n')
+    expect(patch).toBe(
       '- insert:\n    - id: dsh-thinkbar\n      name: dsh-thinkbar\n',
     )
   })
