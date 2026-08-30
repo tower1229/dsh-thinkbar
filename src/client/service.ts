@@ -1,10 +1,9 @@
 import { Service } from '@deepseek-ai/cordis'
 import type { Context } from '@deepseek-ai/cordis'
-import type { PartialAssistant } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ReasoningWaitProjection } from './reasoning-wait-projection.ts'
 import {
   advanceReasoningWait,
-  extrapolateSessionClock,
-  isReasoningWait,
+  extrapolateProjectionClock,
   type ReasoningWaitInput,
   type ReasoningWaitState,
   type SessionClock,
@@ -26,17 +25,13 @@ export class ReasoningWaitService extends Service {
     super(ctx, 'reasoningWait')
   }
 
-  isWaiting(partial: PartialAssistant | null | undefined): boolean {
-    return isReasoningWait(partial)
-  }
-
   clock(
-    partial: PartialAssistant | null | undefined,
-    wallNow: number,
+    projection: ReasoningWaitProjection | null | undefined,
+    frameNow: number,
     anchor: StreamClockAnchor | null,
-    sessionKey: string,
+    identity: string,
   ): SessionClock {
-    return extrapolateSessionClock(partial, wallNow, anchor, sessionKey)
+    return extrapolateProjectionClock(projection, frameNow, anchor, identity)
   }
 
   advance(previous: ReasoningWaitState, input: ReasoningWaitInput): ReasoningWaitState {

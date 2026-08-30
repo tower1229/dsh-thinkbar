@@ -2,6 +2,17 @@
 
 调研日期：2026-08-29
 
+> 2026-08-30 implementation update: this document preserves the original
+> extraction audit and publishing evidence. The standalone repository now has
+> its own Bundle patch, build, tests, package metadata, and bilingual README.
+> The unreleased `PartialAssistant.waitOrigin/streamTime` and
+> `conversation.input.model.decoration` dependencies have been removed. The
+> current implementation derives state through the public rc.2 Conversation
+> event/view registries and mounts through a fail-closed DOM adapter anchored
+> in `conversation.input.right`. See
+> [upstream-reasoning-indicator.md](upstream-reasoning-indicator.md) for the
+> selected compatibility design and current source evidence.
+
 ## 范围与结论
 
 本文回答 DeepSeek Harness（DSH）第三方插件如何独立发布、安装和发现，以及 `packages/client/ui-reasoning-wait` 是否已经满足独立发布条件。实现审计基于本机 `C:\Workspace\Playground\deepseek-harness` 的 `dev-thinkbar` checkout，独立项目目标仓库为 `C:\Workspace\tower1229\dsh-thinkbar`。

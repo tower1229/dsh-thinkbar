@@ -1,5 +1,4 @@
-import type { PartialAssistant } from '@deepseek-ai/dsh-client-runtime/client'
-import type {} from './compatibility.ts'
+import type { ReasoningWaitProjection } from './reasoning-wait-projection.ts'
 
 const FULL_SCALE_MS = 20_000
 const MIN_FILL = 0.08
@@ -23,22 +22,24 @@ export type ReasoningWaitAppearance =
 
 export interface StreamClockAnchor {
   readonly stamp: string
-  readonly streamTime: number
-  readonly seenAt: number
+  readonly identity: string
+  readonly eventElapsed: number
+  readonly observedAt: number
+  readonly renderedElapsed: number
 }
 
 export type ReasoningWaitState =
   | { readonly phase: 'idle' }
   | {
     readonly phase: 'thermometer'
-    readonly sessionKey: string
+    readonly identity: string
     readonly t: number
     readonly height: number
     readonly color: string
   }
   | {
     readonly phase: 'drain'
-    readonly sessionKey: string
+    readonly identity: string
     readonly t: number
     readonly height: number
     readonly color: string
@@ -47,32 +48,24 @@ export type ReasoningWaitState =
   }
 
 export interface ReasoningWaitInput {
-  readonly partial: PartialAssistant | null | undefined
-  readonly now: number
+  readonly projection: ReasoningWaitProjection | null | undefined
+  readonly elapsed: number
+  readonly frameNow: number
   readonly reducedMotion: boolean
-  readonly sessionKey: string
+  readonly identity: string
 }
 
 export interface SessionClock {
-  readonly now: number
+  readonly elapsed: number
   readonly anchor: StreamClockAnchor | null
 }
 
-export function isReasoningWait(
-  partial: PartialAssistant | null | undefined,
-): partial is PartialAssistant & { readonly waitOrigin: number } {
-  if (partial == null || partial.waitOrigin === undefined) return false
-  const tail = partial.blocks.at(-1)
-  if (tail?.kind === 'text') return false
-  return partial.blocks.length === 0 || tail?.kind === 'reasoning'
-}
-
 export function reasoningWaitAppearance(
-  partial: PartialAssistant | null | undefined,
-  now: number,
+  projection: ReasoningWaitProjection | null | undefined,
+  elapsed: number,
 ): ReasoningWaitAppearance {
-  if (!isReasoningWait(partial)) return { phase: 'idle' }
-  const t = Math.min(1, Math.max(0, (now - partial.waitOrigin) / FULL_SCALE_MS))
+  if (projection?.active !== true) return { phase: 'idle' }
+  const t = Math.min(1, Math.max(0, elapsed / FULL_SCALE_MS))
   return {
     phase: 'thermometer',
     t,
@@ -81,51 +74,56 @@ export function reasoningWaitAppearance(
   }
 }
 
-export function extrapolateSessionClock(
-  partial: PartialAssistant | null | undefined,
-  wallNow: number,
+export function extrapolateProjectionClock(
+  projection: ReasoningWaitProjection | null | undefined,
+  frameNow: number,
   anchor: StreamClockAnchor | null,
-  sessionKey: string,
+  identity: string,
 ): SessionClock {
-  if (!isReasoningWait(partial)) return { now: wallNow, anchor: null }
-  const streamTime = partial.streamTime ?? partial.waitOrigin
-  const stamp = `${sessionKey}:${partial.waitOrigin}:${streamTime}`
+  if (projection?.active !== true) return { elapsed: 0, anchor: null }
+  const eventElapsed = Math.max(0, projection.streamTime - projection.waitOrigin)
+  const stamp = `${identity}:${projection.waitOrigin}:${projection.streamTime}`
   if (anchor?.stamp !== stamp) {
-    return { now: streamTime, anchor: { stamp, streamTime, seenAt: wallNow } }
+    const elapsed = Math.max(anchor?.identity === identity ? anchor.renderedElapsed : 0, eventElapsed)
+    return {
+      elapsed,
+      anchor: { stamp, identity, eventElapsed, observedAt: frameNow, renderedElapsed: elapsed },
+    }
   }
-  return { now: anchor.streamTime + (wallNow - anchor.seenAt), anchor }
+  const elapsed = Math.max(anchor.renderedElapsed, anchor.eventElapsed + frameNow - anchor.observedAt)
+  return { elapsed, anchor: { ...anchor, renderedElapsed: elapsed } }
 }
 
 export function advanceReasoningWait(
   previous: ReasoningWaitState,
   input: ReasoningWaitInput,
 ): ReasoningWaitState {
-  const snapshot = reasoningWaitAppearance(input.partial, input.now)
+  const snapshot = reasoningWaitAppearance(input.projection, input.elapsed)
   if (snapshot.phase === 'thermometer') {
     if (
       previous.phase === 'thermometer'
-      && previous.sessionKey === input.sessionKey
+      && previous.identity === input.identity
       && previous.t === snapshot.t
       && previous.height === snapshot.height
       && previous.color === snapshot.color
     ) return previous
-    return { ...snapshot, sessionKey: input.sessionKey }
+    return { ...snapshot, identity: input.identity }
   }
   if (input.reducedMotion) return previous.phase === 'idle' ? previous : { phase: 'idle' }
-  const sameSession = previous.phase !== 'idle' && previous.sessionKey === input.sessionKey
-  if (previous.phase === 'thermometer' && sameSession) {
+  const sameIdentity = previous.phase !== 'idle' && previous.identity === input.identity
+  if (previous.phase === 'thermometer' && sameIdentity) {
     return {
       phase: 'drain',
-      sessionKey: input.sessionKey,
+      identity: input.identity,
       t: previous.t,
       height: previous.height,
       color: previous.color,
       fromHeight: previous.height,
-      startedAt: input.now,
+      startedAt: input.frameNow,
     }
   }
-  if (previous.phase === 'drain' && sameSession) {
-    const elapsed = input.now - previous.startedAt
+  if (previous.phase === 'drain' && sameIdentity) {
+    const elapsed = input.frameNow - previous.startedAt
     if (elapsed >= DRAIN_MS) return { phase: 'idle' }
     const height = previous.fromHeight * (1 - elapsed / DRAIN_MS)
     if (height === previous.height) return previous

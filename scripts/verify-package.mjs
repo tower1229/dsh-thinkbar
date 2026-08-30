@@ -23,6 +23,18 @@ if (!/window\.__ModuleLoader__\.load\(\{\s*id:\s*"dsh-thinkbar",\s*factory:\s*\(
 }
 if (!client.includes('data-plugin-css')) fail('client bundle does not own its injected stylesheet')
 if (client.includes('@deepseek-ai/dsh-client-ui-reasoning-wait')) fail('upstream package id leaked into client bundle')
+if (client.includes('conversation.input.model.decoration') || client.includes('PartialAssistant')) {
+  fail('unpublished Harness compatibility contract leaked into client bundle')
+}
+const allowedRequires = new Set([
+  '@deepseek-ai/cordis',
+  'react',
+  'react-dom',
+  'react/jsx-runtime',
+])
+for (const match of client.matchAll(/require\("([^"]+)"\)/g)) {
+  if (!allowedRequires.has(match[1])) fail(`unresolvable client require: ${match[1]}`)
+}
 
 const cache = await mkdtemp(join(tmpdir(), 'dsh-thinkbar-npm-'))
 let output

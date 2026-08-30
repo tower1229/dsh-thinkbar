@@ -1,14 +1,13 @@
-import type { PartialAssistant } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ReasoningWaitProjection } from './reasoning-wait-projection.ts'
 import type { ReasoningWaitInput, ReasoningWaitState, SessionClock, StreamClockAnchor } from './thermometer.ts'
 
-/** Frame-math interface injected into the model-seat decoration. */
+/** Frame-math interface injected into the public Slot bridge. */
 export interface ReasoningWaitFill {
-  isWaiting(partial: PartialAssistant | null | undefined): boolean
   clock(
-    partial: PartialAssistant | null | undefined,
-    wallNow: number,
+    projection: ReasoningWaitProjection | null | undefined,
+    frameNow: number,
     anchor: StreamClockAnchor | null,
-    sessionKey: string,
+    identity: string,
   ): SessionClock
   advance(previous: ReasoningWaitState, input: ReasoningWaitInput): ReasoningWaitState
 }

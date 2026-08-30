@@ -1,14 +1,33 @@
-.root {
+.anchor {
+  display: none;
+}
+
+:global([data-dsh-thinkbar-host]) {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+:global([data-dsh-thinkbar-host]) > :not([data-dsh-thinkbar-layer]) {
+  position: relative;
+  z-index: 1;
+}
+
+.root,
+.fill {
   position: absolute;
   inset: 0;
+  border-radius: inherit;
   pointer-events: none;
 }
 
+.root {
+  z-index: 0;
+  overflow: hidden;
+}
+
 .fill {
-  position: absolute;
   inset: 0 auto 0 0;
-  border-radius: inherit;
-  pointer-events: none;
   overflow: hidden;
 }
 

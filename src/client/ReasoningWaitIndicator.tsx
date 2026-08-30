@@ -1,16 +1,13 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-} from 'react'
-import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import type { ReasoningWaitState, StreamClockAnchor } from './thermometer.ts'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import type { ReasoningWaitProjection } from './reasoning-wait-projection.ts'
 import type { ReasoningWaitFill } from './fill-face.ts'
-import css from './ModelSelectFill.module.css'
+import type { ReasoningWaitState, StreamClockAnchor } from './thermometer.ts'
+import css from './ReasoningWaitIndicator.module.css'
 
-export type ModelSelectFillProps = PropsRuntime<'conversation.input.model.decoration'> & ReasoningWaitFill
+export interface ReasoningWaitIndicatorProps extends ReasoningWaitFill {
+  readonly identity: string
+  readonly projection: ReasoningWaitProjection | null | undefined
+}
 
 interface FillParticle {
   readonly x: number
@@ -56,22 +53,19 @@ function particleStyle(particle: FillParticle): CSSProperties {
   } as CSSProperties
 }
 
-/** Render the reasoning-wait indicator for the visible session. */
-export function ModelSelectFill({ useSession, sessionId, isWaiting, clock, advance }: ModelSelectFillProps) {
-  const partial = useSession(snapshot => snapshot.partial)
+export function ReasoningWaitIndicator({ identity, projection, clock, advance }: ReasoningWaitIndicatorProps) {
   const [waitState, setWaitState] = useState<ReasoningWaitState>({ phase: 'idle' })
   const clockAnchorRef = useRef<StreamClockAnchor | null>(null)
-  const reducedMotion = prefersReducedMotion()
-  const sessionKey = String(sessionId)
-  const waiting = isWaiting(partial)
-  const wallNow = useNow(waiting || waitState.phase !== 'idle')
-  const clockRead = clock(partial, wallNow, clockAnchorRef.current, sessionKey)
+  const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false
+  const frameNow = useFrameNow(projection?.active === true || waitState.phase !== 'idle')
+  const clockRead = clock(projection, frameNow, clockAnchorRef.current, identity)
   clockAnchorRef.current = clockRead.anchor
-  const view = advance(waitState, { partial, now: clockRead.now, reducedMotion, sessionKey })
+  const input = { projection, elapsed: clockRead.elapsed, frameNow, reducedMotion, identity }
+  const view = advance(waitState, input)
 
   useLayoutEffect(() => {
-    setWaitState(previous => advance(previous, { partial, now: clockRead.now, reducedMotion, sessionKey }))
-  }, [partial, clockRead.now, reducedMotion, sessionKey, isWaiting, clock, advance])
+    setWaitState(previous => advance(previous, input))
+  }, [projection, clockRead.elapsed, frameNow, reducedMotion, identity, advance])
 
   if (view.phase === 'idle') return null
   return (
@@ -94,21 +88,17 @@ export function ModelSelectFill({ useSession, sessionId, isWaiting, clock, advan
   )
 }
 
-function prefersReducedMotion(): boolean {
-  return window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false
-}
-
-function useNow(active: boolean): number {
+function useFrameNow(active: boolean): number {
   const [, setTick] = useState(0)
   useEffect(() => {
     if (!active) return
     let frame = 0
-    const tick = () => {
+    const tick = (): void => {
       setTick(value => value + 1)
       frame = requestAnimationFrame(tick)
     }
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
   }, [active])
-  return Date.now()
+  return performance.now()
 }

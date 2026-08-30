@@ -8,18 +8,19 @@ describe('published package contract', () => {
     expect(manifest).toMatchObject({
       name: 'dsh-thinkbar',
       version: '0.1.0',
-      private: true,
       dsh: {
         bundle: { patch: './cordis.patch.yml' },
         client: {
           platform: 'web',
           inject: [
             '@deepseek-ai/dsh-client-runtime',
+            '@deepseek-ai/dsh-client-ui-conversation',
             '@deepseek-ai/dsh-client-ui-model-selection',
           ],
         },
       },
     })
+    expect(manifest).not.toHaveProperty('private')
   })
 
   it('exposes only built public entrypoints', () => {
@@ -43,8 +44,10 @@ describe('published package contract', () => {
     expect(manifest.peerDependencies).toEqual({
       '@deepseek-ai/cordis': '4.0.1',
       '@deepseek-ai/dsh-client-runtime': '0.1.1-rc.2',
+      '@deepseek-ai/dsh-client-ui-conversation': '0.1.1-rc.2',
       '@deepseek-ai/dsh-client-ui-model-selection': '0.1.1-rc.2',
       react: '^18.2.0',
+      'react-dom': '^18.2.0',
     })
   })
 })

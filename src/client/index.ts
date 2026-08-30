@@ -1,14 +1,18 @@
-/** Browser half: reasoning-wait service and model-seat decoration. */
+/** Browser half: public event projection plus a DOM-adapted model-seat fill. */
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-model-selection/client'
-import type {} from './compatibility.ts'
 import { ReasoningWaitService } from './service.ts'
-import { ModelSelectFill } from './ModelSelectFill.tsx'
+import { ModelTriggerBridge } from './ModelTriggerBridge.tsx'
 import type { ReasoningWaitFill } from './fill-face.ts'
+import { reasoningWaitDefinition, reasoningWaitView } from './reasoning-wait-projection.ts'
 
 export { ReasoningWaitService } from './service.ts'
 export type { ReasoningWaitFill } from './fill-face.ts'
-export type { ModelSelectFillProps } from './ModelSelectFill.tsx'
+export type {
+  ReasoningWaitProjection,
+  ReasoningWaitTailKind,
+} from './reasoning-wait-projection.ts'
 export type {
   ReasoningWaitInput,
   ReasoningWaitState,
@@ -16,23 +20,26 @@ export type {
   StreamClockAnchor,
 } from './thermometer.ts'
 
-/** Required services: the slot registry hosting the decoration hole. */
-export const inject = ['slots']
+/** Required public rc.2 registries. */
+export const inject = ['slots', 'conversationEvents', 'conversationViews']
 
-/** Mount the frame service and register the model-seat thinking fill. */
+/** Mount the projection, frame service, and public-Slot DOM bridge. */
 export function apply(ctx: ClientContext): void {
+  ctx.conversationEvents.register(reasoningWaitDefinition)
+  ctx.conversationViews.register(reasoningWaitView)
   ctx.plugin(ReasoningWaitService)
-  ctx.slots.inject('conversation.input.model.decoration', () => ctx.slots.register({
-    name: 'conversation.input.model.decoration',
+  ctx.slots.inject('conversation.input.right', () => ctx.slots.register({
+    name: 'conversation.input.right',
+    id: 'dsh-thinkbar',
+    order: 20,
     inject: (): ReasoningWaitFill => {
       const reasoningWait = (): ReasoningWaitService | undefined =>
         ctx.get('reasoningWait') as ReasoningWaitService | undefined
       return {
-        isWaiting: partial => reasoningWait()?.isWaiting(partial) ?? false,
-        clock: (partial, wallNow, anchor, sessionKey) =>
-          reasoningWait()?.clock(partial, wallNow, anchor, sessionKey) ?? { now: wallNow, anchor: null },
+        clock: (projection, frameNow, anchor, identity) =>
+          reasoningWait()?.clock(projection, frameNow, anchor, identity) ?? { elapsed: 0, anchor: null },
         advance: (previous, input) => reasoningWait()?.advance(previous, input) ?? { phase: 'idle' },
       }
     },
-  }, ModelSelectFill))
+  }, ModelTriggerBridge))
 }
