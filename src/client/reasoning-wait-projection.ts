@@ -1,26 +1,75 @@
-import type {
-  ConversationMatch,
-  ConversationNodeDefinition,
-  ConversationViewDefinition,
-  ConversationViewNode,
-} from '@deepseek-ai/dsh-client-runtime/client'
-import type {} from '@deepseek-ai/dsh-llm-retry/types'
+import type { ReasoningWaitProjection, ReasoningWaitTailKind } from './projection-types.ts'
 
-export type ReasoningWaitTailKind = 'empty' | 'reasoning' | 'text' | 'tool' | 'other'
+export type { ReasoningWaitProjection, ReasoningWaitTailKind } from './projection-types.ts'
 
-/** Replayable reasoning-wait state derived only from public Session events. */
-export interface ReasoningWaitProjection {
-  readonly turn: number
-  readonly step: number
-  readonly waitOrigin: number
-  readonly streamTime: number
-  readonly active: boolean
-  readonly tailKind: ReasoningWaitTailKind
+interface ProjectionEventBase<Type extends string, Data> {
+  readonly type: Type
+  readonly seq: number
+  readonly time: number
+  readonly data: Data
 }
 
-declare module '@deepseek-ai/dsh-client-runtime/client' {
-  interface ConversationViewSnapshotMap {
-    'dsh-thinkbar': ReasoningWaitProjection | null
+interface StepData {
+  readonly turn: number
+  readonly step: number
+}
+
+type AssistantChunk =
+  | { readonly type: 'block-start'; readonly blockType: 'reasoning' | 'text' | 'tool-call' | string }
+  | { readonly type: 'reasoning-delta' }
+  | { readonly type: 'text-delta' }
+  | { readonly type: 'tool-call-delta' }
+  | { readonly type: 'block-end'; readonly block: { readonly type: 'reasoning' | 'text' | 'tool-call' | string } }
+  | { readonly type: 'usage' }
+
+type ScalarProjectionEvent =
+  | ProjectionEventBase<'step/start', StepData>
+  | ProjectionEventBase<'step/end', StepData>
+  | ProjectionEventBase<'assistant/chunk', StepData & { readonly chunk: AssistantChunk }>
+  | ProjectionEventBase<'assistant/message', StepData>
+  | ProjectionEventBase<'llm/retry', StepData>
+  | ProjectionEventBase<'llm/retry-started', StepData>
+
+export interface ProjectionMatch {
+  readonly event: ProjectionEvent
+  readonly role: 'start' | 'update'
+  readonly location: unknown
+}
+
+export interface ProjectionNodeContext<State = unknown> {
+  readonly key: string
+  readonly kind: string
+  readonly id: string
+  readonly matches: readonly ProjectionMatch[]
+  readonly start: ProjectionMatch | undefined
+  readonly state: State | undefined
+  readonly current: ReadonlyMap<string, ProjectionViewNode | null>
+}
+
+export interface ProjectionViewNode {
+  readonly key: string
+  readonly kind: string
+  readonly id: string
+  readonly target: string
+  readonly data: unknown
+}
+
+interface ProjectionNodeDefinition<State> {
+  readonly kind: string
+  readonly target: string
+  match(event: ProjectionEvent): { readonly id: string; readonly role: 'start' | 'update' } | null
+  start(context: ProjectionNodeContext<State>, match: ProjectionMatch, reader: unknown): State
+  update(context: ProjectionNodeContext<State> & { readonly state: State }, match: ProjectionMatch): State
+  publication(match: ProjectionMatch): 'none' | 'animation-frame' | 'immediate'
+  buildViewNode(context: ProjectionNodeContext<State>): ProjectionViewNode | null
+}
+
+interface ProjectionViewDefinition<Node extends ProjectionViewNode, Snapshot> {
+  readonly target: string
+  create(): {
+    readonly empty: Snapshot
+    replace(input: { readonly nodes: readonly Node[]; readonly timeline: unknown }): Snapshot
+    apply(input: { readonly upserts: readonly Node[]; readonly timeline: unknown }): Snapshot
   }
 }
 
@@ -28,7 +77,7 @@ interface ReasoningWaitState extends ReasoningWaitProjection {
   readonly retryPending: boolean
 }
 
-interface ReasoningWaitNode extends ConversationViewNode {
+interface ReasoningWaitNode extends ProjectionViewNode {
   readonly target: 'dsh-thinkbar'
   readonly anchorSeq: number
   readonly data: ReasoningWaitProjection
@@ -50,7 +99,7 @@ interface CompactChunkEvent {
   }
 }
 
-type ProjectionEvent = ConversationMatch['event'] | CompactChunkEvent
+type ProjectionEvent = ScalarProjectionEvent | CompactChunkEvent
 
 function isCompactChunkEvent(event: ProjectionEvent): event is CompactChunkEvent {
   const type = String(event.type)
@@ -94,7 +143,7 @@ function transition(
   }
 }
 
-function chunkTransition(state: ReasoningWaitState, match: ConversationMatch): ReasoningWaitState {
+function chunkTransition(state: ReasoningWaitState, match: ProjectionMatch): ReasoningWaitState {
   if (match.event.type !== 'assistant/chunk') return state
   const { chunk } = match.event.data
   switch (chunk.type) {
@@ -144,7 +193,7 @@ function compactTransition(state: ReasoningWaitState, event: CompactChunkEvent):
   return transition(state, streamTime, 'tool', false)
 }
 
-function updateState(state: ReasoningWaitState, match: ConversationMatch): ReasoningWaitState {
+function updateState(state: ReasoningWaitState, match: ProjectionMatch): ReasoningWaitState {
   const event = match.event as ProjectionEvent
   if (isCompactChunkEvent(event)) return compactTransition(state, event)
   if (event.type === 'assistant/chunk') return chunkTransition(state, match)
@@ -158,7 +207,7 @@ function updateState(state: ReasoningWaitState, match: ConversationMatch): Reaso
 }
 
 /** Per-Step event state machine for the reasoning indicator. */
-export const reasoningWaitDefinition: ConversationNodeDefinition<ReasoningWaitState> = {
+export const reasoningWaitDefinition: ProjectionNodeDefinition<ReasoningWaitState> = {
   kind: 'dsh-thinkbar/reasoning-wait',
   target: 'dsh-thinkbar',
   match: (event) => {
@@ -205,7 +254,7 @@ function latestProjection(nodes: Iterable<ReasoningWaitNode>): ReasoningWaitProj
 }
 
 /** Session-owned reducer selecting the latest Step projection. */
-export const reasoningWaitView: ConversationViewDefinition<
+export const reasoningWaitView: ProjectionViewDefinition<
   ReasoningWaitNode,
   ReasoningWaitProjection | null
 > = {

@@ -8,30 +8,30 @@
 
 ## 运行要求
 
-- DeepSeek Harness `0.1.1-rc.2`
+- DeepSeek Harness 源码版 `0.1.2-alpha.1`
 - 启用官方模型选择插件的标准 DSH `web` Profile
 - Node.js `^22.19.0` 或 `>=24.0.0`
 
-首版只兼容 `0.1.1-rc.2`。Harness 仍处于 developer preview，不假定后续源码版本保持二进制兼容。
+当前版本只兼容 `0.1.2-alpha.1`。该 Harness 版本目前是源码构建目标，并未作为完整 npm 版本发布；早期 RC 使用不同的 Conversation service，不再支持。
 
 ## 安装
 
 发布后从 npm 安装：
 
 ```sh
-dsh plugin --profile web add dsh-thinkbar
+pnpm dsh plugin --profile web add dsh-thinkbar
 ```
 
 也可以安装本地 release tarball：
 
 ```sh
-dsh plugin --profile web add ./dsh-thinkbar-0.1.0.tgz
+pnpm dsh plugin --profile web add ./dsh-thinkbar-<version>.tgz
 ```
 
 安装后重启 Web Profile；Bundle 变更会在 Profile 启动时生效。验证 Bundle layer 和 Loader row：
 
 ```sh
-dsh --profile web --dump-config
+pnpm dsh --profile web --dump-config
 ```
 
 输出中必须恰好包含一个 `dsh-thinkbar` row。
@@ -41,18 +41,18 @@ dsh --profile web --dump-config
 显式安装目标版本，然后重启：
 
 ```sh
-dsh plugin --profile web add dsh-thinkbar@0.1.0
+pnpm dsh plugin --profile web add dsh-thinkbar@<version>
 ```
 
 删除插件后重启 Profile：
 
 ```sh
-dsh plugin --profile web remove dsh-thinkbar
+pnpm dsh plugin --profile web remove dsh-thinkbar
 ```
 
 ## 工作原理
 
-插件通过公开的 Conversation event/view registry 推导 `{ waitOrigin, streamTime, active, tailKind }`。`step/start` 只记录时钟，不立即显示；首个 reasoning block 才激活填充。直接输出正文或仅输出 Tool 的响应不会闪现指示器。
+插件通过公开的 `ctx.uiConversation.events` 和 `ctx.uiConversation.views` registry 推导 `{ waitOrigin, streamTime, active, tailKind }`。`step/start` 只记录时钟，不立即显示；首个 reasoning block 才激活填充。直接输出正文或仅输出 Tool 的响应不会闪现指示器。
 
 原版 Harness 没有模型选择器内部的 additive child Slot。因此插件在公开的 `conversation.input.right` Slot 注册生命周期锚点，在 `[data-composer-card]` 内识别锚点之后唯一的语义按钮 `button[aria-haspopup="menu"]`，并用 Portal 插入一个插件自有填充层。它不依赖生成的 class、模型文案、本地化、React 私有字段或按钮内部子结构。
 
@@ -66,11 +66,11 @@ dsh plugin --profile web remove dsh-thinkbar
 
 ## 故障排查
 
-- **安装后没有变化：**重启 Web Profile，并确认 `dsh --profile web --dump-config` 中存在 `dsh-thinkbar`。
-- **client bundle 加载失败：**确认 DSH 精确为 `0.1.1-rc.2`，重新安装并重启，然后检查浏览器 console 和 Host stderr。
+- **安装后没有变化：**重启 Web Profile，并确认 `pnpm dsh --profile web --dump-config` 中存在 `dsh-thinkbar`。
+- **client bundle 加载失败：**确认 DSH 源码版本精确为 `0.1.2-alpha.1`，重新安装并重启，然后检查浏览器 console 和 Host stderr。
 - **出现兼容性告警：**确认已启用官方模型选择插件，并且没有其他插件在 `conversation.input.right` 后增加菜单按钮。
 - **响应期间没有填充：**指示器只在首个 reasoning 事件出现后激活；直接正文或仅 Tool 输出保持 idle。
-- **卸载后仍显示：**执行 `dsh plugin --profile web remove dsh-thinkbar` 后必须重启 Profile。
+- **卸载后仍显示：**执行 `pnpm dsh plugin --profile web remove dsh-thinkbar` 后必须重启 Profile。
 
 ## 本地开发
 
@@ -105,7 +105,7 @@ Contributor 参考资料：
 - [原版兼容思考指示器调研](docs/research/upstream-reasoning-indicator.md)
 - [DSH plugin 发布机制调研](docs/research/dsh-plugin-publishing.md)
 
-贡献代码应包含聚焦测试并通过 `pnpm verify`；修改事件、Slot、DOM Adapter 或 bundle 行为时，还需把最终 tarball 安装到干净的 DSH `0.1.1-rc.2` Web Profile 验证。
+贡献代码应包含聚焦测试并通过 `pnpm verify`；修改事件、Slot、DOM Adapter 或 bundle 行为时，还需把最终 tarball 安装到干净的 DSH `0.1.2-alpha.1` Web Profile 验证。
 
 ## 许可与归属
 

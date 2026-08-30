@@ -12,7 +12,6 @@ describe('published package contract', () => {
         client: {
           platform: 'web',
           inject: [
-            '@deepseek-ai/dsh-client-runtime',
             '@deepseek-ai/dsh-client-ui-conversation',
             '@deepseek-ai/dsh-client-ui-model-selection',
           ],
@@ -43,11 +42,14 @@ describe('published package contract', () => {
   it('pins the developer-preview DSH peer surface', () => {
     expect(manifest.peerDependencies).toEqual({
       '@deepseek-ai/cordis': '4.0.1',
-      '@deepseek-ai/dsh-client-runtime': '0.1.1-rc.2',
-      '@deepseek-ai/dsh-client-ui-conversation': '0.1.1-rc.2',
-      '@deepseek-ai/dsh-client-ui-model-selection': '0.1.1-rc.2',
+      '@deepseek-ai/dsh-client-ui-conversation': '0.1.2-alpha.1',
+      '@deepseek-ai/dsh-client-ui-model-selection': '0.1.2-alpha.1',
       react: '^18.2.0',
       'react-dom': '^18.2.0',
+    })
+    expect(manifest.peerDependenciesMeta).toEqual({
+      '@deepseek-ai/dsh-client-ui-conversation': { optional: true },
+      '@deepseek-ai/dsh-client-ui-model-selection': { optional: true },
     })
   })
 })

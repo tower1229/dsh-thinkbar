@@ -1,4 +1,4 @@
-import type { ReasoningWaitProjection } from './reasoning-wait-projection.ts'
+import type { ReasoningWaitProjection } from './projection-types.ts'
 import type { ReasoningWaitInput, ReasoningWaitState, SessionClock, StreamClockAnchor } from './thermometer.ts'
 
 /** Frame-math interface injected into the public Slot bridge. */

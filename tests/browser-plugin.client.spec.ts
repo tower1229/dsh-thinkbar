@@ -1,12 +1,12 @@
 import { readFileSync } from 'node:fs'
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { apply, inject } from '../src/client/index.ts'
 import { apply as applyNode } from '../src/index.ts'
 
 describe('dsh-thinkbar browser half', () => {
   it('declares the slot service it binds', () => {
-    expect(inject).toEqual(['slots', 'conversationEvents', 'conversationViews'])
+    expect(inject).toEqual(['slots', 'uiConversation'])
   })
 
   it('registers its projection and contributes the public Slot bridge', () => {
@@ -19,9 +19,11 @@ describe('dsh-thinkbar browser half', () => {
       plugin,
       get: vi.fn(() => undefined),
       slots: { inject: injectSlot, register },
-      conversationEvents: { register: registerEvent },
-      conversationViews: { register: registerView },
-    } as unknown as ClientContext
+      uiConversation: {
+        events: { register: registerEvent },
+        views: { register: registerView },
+      },
+    } as unknown as Context
 
     apply(ctx)
 

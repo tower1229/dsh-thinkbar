@@ -1,6 +1,6 @@
 import { Service } from '@deepseek-ai/cordis'
 import type { Context } from '@deepseek-ai/cordis'
-import type { ReasoningWaitProjection } from './reasoning-wait-projection.ts'
+import type { ReasoningWaitProjection } from './projection-types.ts'
 import {
   advanceReasoningWait,
   extrapolateProjectionClock,

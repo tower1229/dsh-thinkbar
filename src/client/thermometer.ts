@@ -1,4 +1,4 @@
-import type { ReasoningWaitProjection } from './reasoning-wait-projection.ts'
+import type { ReasoningWaitProjection } from './projection-types.ts'
 
 const FULL_SCALE_MS = 20_000
 const MIN_FILL = 0.08

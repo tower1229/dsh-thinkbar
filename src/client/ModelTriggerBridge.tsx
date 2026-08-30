@@ -1,18 +1,26 @@
-import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { createPortal } from 'react-dom'
 import { useRef } from 'react'
 import type { ReasoningWaitFill } from './fill-face.ts'
+import type { ReasoningWaitProjection } from './projection-types.ts'
 import { ReasoningWaitIndicator } from './ReasoningWaitIndicator.tsx'
 import { useModelTrigger } from './use-model-trigger.ts'
 import css from './ReasoningWaitIndicator.module.css'
 
-export type ModelTriggerBridgeProps = PropsRuntime<'conversation.input.right'> & ReasoningWaitFill
+interface ConversationSnapshotLike {
+  readonly views: { get(target: string): unknown }
+}
+
+export interface ModelTriggerBridgeProps extends ReasoningWaitFill {
+  readonly sessionId: string
+  readonly useConversation: <Selection>(selector: (snapshot: ConversationSnapshotLike) => Selection) => Selection
+}
 
 /** Public-Slot lifecycle bridge that portals the indicator into the model trigger. */
-export function ModelTriggerBridge({ useSession, sessionId, clock, advance }: ModelTriggerBridgeProps) {
+export function ModelTriggerBridge({ useConversation, sessionId, clock, advance }: ModelTriggerBridgeProps) {
   const anchorRef = useRef<HTMLSpanElement>(null)
   const layer = useModelTrigger(anchorRef)
-  const projection = useSession(snapshot => snapshot.views.get('dsh-thinkbar'))
+  const projection = useConversation(snapshot =>
+    snapshot.views.get('dsh-thinkbar') as ReasoningWaitProjection | null | undefined)
   const identity = projection === null || projection === undefined
     ? String(sessionId)
     : `${String(sessionId)}:${projection.turn}:${projection.step}`

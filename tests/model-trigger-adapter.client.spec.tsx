@@ -1,6 +1,4 @@
 // @vitest-environment jsdom
-import type { SessionId } from '@deepseek-ai/dsh-api-remotes/client'
-import type { ConversationSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ModelTriggerBridge, type ModelTriggerBridgeProps } from '../src/client/ModelTriggerBridge.tsx'
@@ -12,7 +10,7 @@ import {
 import type { ReasoningWaitProjection } from '../src/client/reasoning-wait-projection.ts'
 import { advanceReasoningWait, extrapolateProjectionClock } from '../src/client/thermometer.ts'
 
-const SESSION_ID = 's1' as SessionId
+const SESSION_ID = 's1'
 
 afterEach(() => {
   cleanup()
@@ -92,16 +90,13 @@ function bridgeProps(projection: ReasoningWaitProjection): ModelTriggerBridgePro
   const snapshot = {
     sessionId: SESSION_ID,
     views: { get: () => projection },
-  } as unknown as ConversationSnapshot
+  }
   return {
     sessionId: SESSION_ID,
-    useSession: <Selected,>(selector: (value: ConversationSnapshot) => Selected): Selected => selector(snapshot),
-    useProjection: (() => undefined) as ModelTriggerBridgeProps['useProjection'],
-    useSessions: (() => undefined) as ModelTriggerBridgeProps['useSessions'],
-    useWorkspaces: (() => undefined) as ModelTriggerBridgeProps['useWorkspaces'],
+    useConversation: <Selected,>(selector: (value: typeof snapshot) => Selected): Selected => selector(snapshot),
     clock: extrapolateProjectionClock,
     advance: advanceReasoningWait,
-  } as unknown as ModelTriggerBridgeProps
+  }
 }
 
 describe('ModelTriggerBridge', () => {

@@ -1,4 +1,6 @@
 packages: []
 
+autoInstallPeers: false
+
 onlyBuiltDependencies:
   - esbuild

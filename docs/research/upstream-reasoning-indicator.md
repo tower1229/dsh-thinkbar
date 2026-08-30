@@ -6,6 +6,8 @@ Research date: 2026-08-30
   [`b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`](https://github.com/deepseek-ai/deepseek-harness/tree/b150a551b8d465e31e418e1b2eaf5e79bbb7d28e)
 - Upstream `master` at research time:
   [`cd5ef8148158c3a752a658978873241fdf8e2bbc`](https://github.com/deepseek-ai/deepseek-harness/tree/cd5ef8148158c3a752a658978873241fdf8e2bbc)
+- Locally verified `0.1.2-alpha.1` source revision:
+  `869feb8842da4371450a62ff726d626db13f3dd4`
 
 ## Conclusion
 
@@ -191,14 +193,14 @@ The plugin registers a hidden lifecycle anchor there, resolves the only
 portals a plugin-owned layer into that button. Zero or multiple candidates
 fail closed and produce one compatibility warning.
 
-Recommended registration for rc.2:
+Registration for the verified `0.1.2-alpha.1` source build:
 
 ```ts
-export const inject = ['slots', 'conversationEvents', 'conversationViews']
+export const inject = ['slots', 'uiConversation']
 
-export function apply(ctx: ClientContext): void {
-  ctx.conversationEvents.register(reasoningWaitDefinition)
-  ctx.conversationViews.register(reasoningWaitView)
+export function apply(ctx: Context): void {
+  ctx.uiConversation.events.register(reasoningWaitDefinition)
+  ctx.uiConversation.views.register(reasoningWaitView)
   ctx.slots.inject('conversation.input.right', () => ctx.slots.register({
     name: 'conversation.input.right',
     id: 'dsh-thinkbar',
@@ -207,10 +209,11 @@ export function apply(ctx: ClientContext): void {
 }
 ```
 
-On latest `master`, adapt only the registry calls to
-`ctx.uiConversation.events.register(...)` and
-`ctx.uiConversation.views.register(...)`; the component reads the target via
-`useConversation`.
+The old `conversationEvents` and `conversationViews` service names are not
+provided by this version. Keeping them in `inject` leaves the browser entry
+pending before the DOM adapter can mount. The component reads the registered
+target through the Slot's standard `useConversation` selector hook; the newer
+`useSession` snapshot does not own Conversation views.
 
 The Slot still owns lifecycle and Session scoping. A composer-scoped
 `MutationObserver` only re-resolves the adapter after host reconstruction; it
@@ -271,10 +274,10 @@ unnecessary when a composer list slot exists.
 
 ## Package and implementation recommendation
 
-For this repository's currently fixed `0.1.1-rc.2` baseline:
+For this repository's fixed `0.1.2-alpha.1` baseline:
 
-1. keep that baseline and replace the declaration-merge shim with the public
-   rc.2 Conversation definition/view APIs;
+1. register definitions and views through the public `uiConversation` service
+   and remove the deleted client Runtime dependency;
 2. register a `conversation.input.right` lifecycle anchor and mount a
    fail-closed DOM adapter instead of the absent model decoration slot;
 3. move `waitOrigin` and `streamTime` derivation into the plugin-owned
@@ -284,7 +287,7 @@ For this repository's currently fixed `0.1.1-rc.2` baseline:
 5. preserve the model-button fill while never rewriting host children;
 6. test scalar chunks, compact replay rows, reasoning-to-text, Tool-only output,
    retries, Step close, Session switch, reduced motion, and HMR teardown; and
-7. run a real installed rc.2 Web Profile smoke.
+7. run a real installed `0.1.2-alpha.1` Web Profile smoke.
 
 The browser package still uses the normal official envelope:
 `dsh.client.platform: "web"` and a built lazy-CJS `./client` export
@@ -292,4 +295,4 @@ The browser package still uses the normal official envelope:
 
 This is an installable plugin for original DeepSeek Harness. It preserves the
 state-machine and timing behavior without private runtime fields. Its only
-private-host dependency is isolated in a fail-closed, rc.2-pinned DOM adapter.
+private-host dependency is isolated in a fail-closed, version-pinned DOM adapter.

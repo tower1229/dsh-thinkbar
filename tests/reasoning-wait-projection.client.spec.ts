@@ -1,8 +1,8 @@
 import type {
-  ConversationMatch,
-  ConversationNodeContext,
-  ConversationViewNode,
-} from '@deepseek-ai/dsh-client-runtime/client'
+  ProjectionMatch,
+  ProjectionNodeContext,
+  ProjectionViewNode,
+} from '../src/client/reasoning-wait-projection.ts'
 import { describe, expect, it } from 'vitest'
 import {
   reasoningWaitDefinition,
@@ -10,15 +10,15 @@ import {
   type ReasoningWaitProjection,
 } from '../src/client/reasoning-wait-projection.ts'
 
-function match(event: object, role: 'start' | 'update' = 'update'): ConversationMatch {
-  return { event, view: undefined, role, location: { kind: 'unresolved' } } as unknown as ConversationMatch
+function match(event: object, role: 'start' | 'update' = 'update'): ProjectionMatch {
+  return { event, role, location: { kind: 'unresolved' } } as unknown as ProjectionMatch
 }
 
-function stepStart(time = 1_000): ConversationMatch {
+function stepStart(time = 1_000): ProjectionMatch {
   return match({ type: 'step/start', seq: 1, time, data: { turn: 1, step: 1 } }, 'start')
 }
 
-function context<State>(state: State | undefined, matches: readonly ConversationMatch[]): ConversationNodeContext<State> {
+function context<State>(state: State | undefined, matches: readonly ProjectionMatch[]): ProjectionNodeContext<State> {
   return {
     key: 'dsh-thinkbar/reasoning-wait:1:1',
     kind: 'dsh-thinkbar/reasoning-wait',
@@ -37,7 +37,7 @@ function startState() {
 
 function update(state: ReturnType<typeof startState>, event: object) {
   const next = match(event)
-  const current = context(state, [stepStart(), next]) as ConversationNodeContext<typeof state> & {
+  const current = context(state, [stepStart(), next]) as ProjectionNodeContext<typeof state> & {
     readonly state: typeof state
   }
   return reasoningWaitDefinition.update(current, next)
@@ -133,9 +133,9 @@ describe('reasoningWaitDefinition', () => {
 describe('reasoningWaitView', () => {
   it('selects the node with the latest event sequence for replace and apply', () => {
     const builder = reasoningWaitView.create()
-    const node = (key: string, anchorSeq: number, data: ReasoningWaitProjection): ConversationViewNode => ({
+    const node = (key: string, anchorSeq: number, data: ReasoningWaitProjection): ProjectionViewNode => ({
       key, kind: 'dsh-thinkbar/reasoning-wait', id: key, target: 'dsh-thinkbar', anchorSeq, data,
-    } as ConversationViewNode)
+    } as ProjectionViewNode)
     const first = waitingProjection(1, 1)
     const second = waitingProjection(2, 1)
     expect(builder.replace({
