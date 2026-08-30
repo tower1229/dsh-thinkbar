@@ -82,6 +82,22 @@ pnpm pack
 
 `pnpm verify` runs TypeScript checking, unit/component tests, the standalone DSH client build, tarball-contract checks, and `publint`.
 
+### Publishing
+
+Log in to npm once with `npm login`. Every release after that is a single command:
+
+```sh
+npm run publish
+```
+
+The release script verifies the npm identity, keeps the current version when it is still unpublished or increments the patch version when it already exists, runs the complete verification suite, packs one release tarball, writes its SHA-256 checksum, publishes that exact tarball, and verifies its registry integrity. Release files are written to `.smoke/release/`. It deliberately does not commit, tag, or push Git changes.
+
+Exercise the complete flow without publishing:
+
+```sh
+npm run publish -- --dry-run
+```
+
 The browser artifact is a DSH lazy-CJS factory, not an ordinary application module. Preserve its exact `window.__ModuleLoader__.load(...)` envelope.
 
 Contributor references:

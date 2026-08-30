@@ -82,6 +82,22 @@ pnpm pack
 
 `pnpm verify` 会执行 TypeScript 检查、单元与组件测试、独立 DSH client 构建、tarball 契约检查和 `publint`。
 
+### 发布
+
+首次使用前执行一次 `npm login`。之后每次发布只需：
+
+```sh
+npm run publish
+```
+
+发布脚本会检查 npm 身份；当前版本未发布时直接使用，已存在时自动递增 patch 版本；然后执行完整验证、生成唯一 release tarball 及 SHA-256 checksum、发布该 tarball，并回读 registry 校验完整性。产物位于 `.smoke/release/`。脚本不会自动提交、打 Git tag 或 push。
+
+不实际发布的完整演练：
+
+```sh
+npm run publish -- --dry-run
+```
+
 浏览器产物是 DSH lazy-CJS factory，不是普通应用模块；必须保留精确的 `window.__ModuleLoader__.load(...)` envelope。
 
 Contributor 参考资料：

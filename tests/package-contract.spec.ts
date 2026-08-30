@@ -7,7 +7,6 @@ describe('published package contract', () => {
   it('declares the independent bundle and web client', () => {
     expect(manifest).toMatchObject({
       name: 'dsh-thinkbar',
-      version: '0.1.0',
       dsh: {
         bundle: { patch: './cordis.patch.yml' },
         client: {
@@ -20,6 +19,7 @@ describe('published package contract', () => {
         },
       },
     })
+    expect(manifest.version).toMatch(/^\d+\.\d+\.\d+$/)
     expect(manifest).not.toHaveProperty('private')
   })
 

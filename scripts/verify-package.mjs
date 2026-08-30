@@ -12,7 +12,9 @@ const fail = (message) => {
   throw new Error(`package contract: ${message}`)
 }
 
-if (manifest.name !== 'dsh-thinkbar' || manifest.version !== '0.1.0') fail('unexpected package identity')
+if (manifest.name !== 'dsh-thinkbar' || !/^\d+\.\d+\.\d+$/.test(manifest.version)) {
+  fail('unexpected package identity')
+}
 if (manifest.dsh?.bundle?.patch !== './cordis.patch.yml') fail('missing bundle patch declaration')
 if (manifest.dsh?.client?.platform !== 'web') fail('missing web client declaration')
 if (manifest.exports?.['./client']?.default !== './lib/client.cjs') fail('unexpected client export')
