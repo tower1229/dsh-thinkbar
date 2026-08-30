@@ -1,114 +1,161 @@
-# dsh-thinkbar
+<div align="center">
 
-[English](README.md) | 中文
+# 🧠 dsh-thinkbar
 
-`dsh-thinkbar` 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 Web UI 插件。当前可见助手 Step 正在流式输出 reasoning 时，它会填充现有模型选择器作为思考指示器。
+**DeepSeek Harness Web 对话框动态思考指示器插件**
 
-![效果演示](assets/思考指示器演示.gif)
+[![npm version](https://img.shields.io/npm/v/dsh-thinkbar.svg?style=flat-square)](https://www.npmjs.com/package/dsh-thinkbar)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+[![DSH Compatibility](https://img.shields.io/badge/DSH-0.1.2--alpha.1-8a2be2?style=flat-square)](https://github.com/deepseek-ai/deepseek-harness)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-3178c6?style=flat-square)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D22.19.0-brightgreen.svg?style=flat-square)](https://nodejs.org)
 
-指示器从 8% 起步，在 20 秒内按 ease-out 曲线填满，并沿 Harness info blue、红、橙、黄变化。reasoning 转为正文或 Tool call、助手消息完成或 Step 结束后，填充在 240ms 内抽空。切换会话会清除旧指示器；reduced-motion 模式会跳过抽空和粒子运动。
+<p align="center">
+  <a href="README.md">English</a> | <b>简体中文</b>
+</p>
 
-## 运行要求
+<br>
 
-- DeepSeek Harness 源码版 `0.1.2-alpha.1`
-- 启用官方模型选择插件的标准 DSH `web` Profile
-- Node.js `^22.19.0` 或 `>=24.0.0`
+<img src="assets/思考指示器演示.gif" alt="dsh-thinkbar 效果演示" width="760" style="border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.1);" />
 
-当前版本只兼容 `0.1.2-alpha.1`。该 Harness 版本目前是源码构建目标，并未作为完整 npm 版本发布；早期 RC 使用不同的 Conversation service，不再支持。
+</div>
 
-## 安装
+---
 
-发布后从 npm 安装：
+`dsh-thinkbar` 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的轻量级、无侵入 Web UI 插件。在当前可见助手 Step 正在流式输出思考链（reasoning thoughts）时，它会为现有的模型选择器填充动态热感进度与色彩渐变。
+
+## ✨ 核心特性
+
+- 🌡️ **物理热感温阶配色（Iron Scale）**：指示器从 8% 启航，在 20 秒内按 ease-out 曲线平滑填满，沿 Harness 官方信息蓝（0s）→ 红热（~6.7s）→ 橙红（~13.3s）→ 金黄高热（20s）自然过渡。
+- ⚡ **零侵入 Portal 适配**：通过公开的 `conversation.input.right` Slot 生命周期锚点与 DOM 语义发现注入独立图层，不修改 DSH 核心源码、不依赖生成的 CSS 类名或模型文案。
+- 🎯 **精准流式状态机**：严格按 `reasoning` 块边界激活。直接输出正文或纯工具调用时绝不误闪。
+- 💨 **灵动抽空动效**：当思考转为正文、工具调用或 Step 完成时，在 240ms 内迅速丝滑抽空归零。
+- ♿ **无障碍友好**：深度适配系统 `prefers-reduced-motion` 减弱动态偏好。
+- 🔒 **纯前端无遥测**：无服务端行为、不改变 prompt/消息/请求、零遥测与数据收集。
+
+---
+
+## 📋 运行要求
+
+| 依赖项 | 要求版本 | 说明 |
+| :--- | :--- | :--- |
+| **DeepSeek Harness** | `0.1.2-alpha.1` (源码版) | 精确支持该源码构建目标 |
+| **Profile** | 标准 DSH `web` Profile | 需启用官方模型选择插件 |
+| **Node.js** | `^22.19.0` \|\| `>=24.0.0` | 推荐 LTS 版本 |
+| **包管理器** | `pnpm` (>= 9.0) | DSH 推荐工作流 |
+
+> [!IMPORTANT]
+> 当前版本精确兼容 `0.1.2-alpha.1`。早期 RC 使用了不同的 Conversation Service 接口，暂不支持。
+
+---
+
+## 🚀 快速上手
+
+### 安装
+
+通过 npm 注册表安装：
 
 ```sh
 pnpm dsh plugin --profile web add dsh-thinkbar
 ```
 
-也可以安装本地 release tarball：
+或安装本地 release tarball：
 
 ```sh
 pnpm dsh plugin --profile web add ./dsh-thinkbar-<version>.tgz
 ```
 
-安装后重启 Web Profile；Bundle 变更会在 Profile 启动时生效。验证 Bundle layer 和 Loader row：
+安装后启动/重启 Web Profile：
+
+```sh
+pnpm dsh web
+```
+
+验证插件已正确加载：
 
 ```sh
 pnpm dsh --profile web --dump-config
 ```
+*(输出中必须恰好包含一个 `dsh-thinkbar` 行)*
 
-输出中必须恰好包含一个 `dsh-thinkbar` row。
-
-## 升级和卸载
-
-显式安装目标版本，然后重启：
+### 升级与卸载
 
 ```sh
+# 升级至指定版本
 pnpm dsh plugin --profile web add dsh-thinkbar@<version>
-```
 
-删除插件后重启 Profile：
-
-```sh
+# 卸载插件
 pnpm dsh plugin --profile web remove dsh-thinkbar
 ```
 
-## 工作原理
+---
 
-插件通过公开的 `ctx.uiConversation.events` 和 `ctx.uiConversation.views` registry 推导 `{ waitOrigin, streamTime, active, tailKind }`。`step/start` 只记录时钟，不立即显示；首个 reasoning block 才激活填充。直接输出正文或仅输出 Tool 的响应不会闪现指示器。
-
-原版 Harness 没有模型选择器内部的 additive child Slot。因此插件在公开的 `conversation.input.right` Slot 注册生命周期锚点，在 `[data-composer-card]` 内识别锚点之后唯一的语义按钮 `button[aria-haspopup="menu"]`，并用 Portal 插入一个插件自有填充层。它不依赖生成的 class、模型文案、本地化、React 私有字段或按钮内部子结构。
-
-如果无法唯一识别模型按钮，插件不会修改 DOM，只在浏览器 console 输出一次兼容性告警：
+## 🔍 工作原理
 
 ```text
-[dsh-thinkbar] Could not uniquely identify the DeepSeek Harness model selector; the indicator is disabled.
+[ step/start ] ──> 记录时钟锚点 (Idle 待机)
+       │
+[ assistant/chunk: reasoning ] ──> 激活填充 (8% -> 100%, 0s -> 20s)
+       │                              │
+       │                              └──> 配色渐变: 官方蓝 -> 红 -> 橙 -> 金黄
+       │
+[ text / tool-call / step/end ] ──> 快速抽空 (240ms) -> 回到 Idle 待机
 ```
 
-插件没有设置项和 Host 行为，不会改变 prompt、消息、schema、工具、模型请求或 KV Cache，不包含遥测，也不会上传数据。
+1. **状态投影（Projection）**：通过公开的 `ctx.uiConversation.events` 和 `ctx.uiConversation.views` 实时推导 `{ waitOrigin, streamTime, active, tailKind }`。
+2. **生命周期锚定与 Portal**：在 `conversation.input.right` 注册锚点，在 `[data-composer-card]` 容器内寻找其后唯一的 `button[aria-haspopup="menu"]` 语义按钮，并 Portal 挂载插件图层。
+3. **安全降级机制**：若无法唯一识别模型按钮，插件保持 DOM 纯净并仅在控制台输出一次兼容性提示：
+   ```text
+   [dsh-thinkbar] Could not uniquely identify the DeepSeek Harness model selector; the indicator is disabled.
+   ```
 
-## 故障排查
+---
 
-- **安装后没有变化：**重启 Web Profile，并确认 `pnpm dsh --profile web --dump-config` 中存在 `dsh-thinkbar`。
-- **client bundle 加载失败：**确认 DSH 源码版本精确为 `0.1.2-alpha.1`，重新安装并重启，然后检查浏览器 console 和 Host stderr。
-- **出现兼容性告警：**确认已启用官方模型选择插件，并且没有其他插件在 `conversation.input.right` 后增加菜单按钮。
-- **响应期间没有填充：**指示器只在首个 reasoning 事件出现后激活；直接正文或仅 Tool 输出保持 idle。
-- **卸载后仍显示：**执行 `pnpm dsh plugin --profile web remove dsh-thinkbar` 后必须重启 Profile。
+## 🛠️ 故障排查
 
-## 本地开发
+| 现象 | 可能原因 | 解决办法 |
+| :--- | :--- | :--- |
+| **安装后页面无变化** | 未重启 Profile 或 Bundle 未生效 | 重启 Web Profile，并通过 `pnpm dsh --profile web --dump-config` 确认插件存在。 |
+| **client bundle 加载失败** | DSH 源码版本不匹配 | 确认 DSH 源码版本精确为 `0.1.2-alpha.1`，检查浏览器控制台与服务端 stderr。 |
+| **控制台出现兼容性告警** | 缺少模型选择器或存在冲突按钮 | 确认已启用官方模型选择插件，且无其他插件在右侧 Slot 插入同名菜单按钮。 |
+| **模型回答时指示器未激活** | 本次回答未产生 reasoning 块 | 指示器仅在收到 reasoning 事件后激活，直接输出正文或 Tool 调用时保持待机。 |
+| **卸载后残留显示** | 进程缓存未释放 | 执行卸载命令后必须重启 Profile 服务。 |
+
+---
+
+## 🧑‍💻 本地开发
 
 ```sh
+# 安装依赖
 pnpm install --frozen-lockfile
+
+# 执行类型检查、单元测试、构建校验与 publint
 pnpm verify
+
+# 打包本地 tarball
 pnpm pack
 ```
 
-`pnpm verify` 会执行 TypeScript 检查、单元与组件测试、独立 DSH client 构建、tarball 契约检查和 `publint`。
-
-### 发布
-
-首次使用前执行一次 `npm login`。之后每次发布只需：
+### 发布流水线
 
 ```sh
+# 一键自动化发版脚本
 npm run publish
-```
 
-发布脚本会检查 npm 身份；当前版本未发布时直接使用，已存在时自动递增 patch 版本；然后执行完整验证、生成唯一 release tarball 及 SHA-256 checksum、发布该 tarball，并回读 registry 校验完整性。产物位于 `.smoke/release/`。脚本不会自动提交、打 Git tag 或 push。
-
-不实际发布的完整演练：
-
-```sh
+# 不发布的 dry-run 完整演练
 npm run publish -- --dry-run
 ```
 
-浏览器产物是 DSH lazy-CJS factory，不是普通应用模块；必须保留精确的 `window.__ModuleLoader__.load(...)` envelope。
+浏览器产物为 DSH lazy-CJS factory，必须严格保留 `window.__ModuleLoader__.load(...)` 外层 envelope。
 
-Contributor 参考资料：
-
+### Contributor 参考资料
 - [原版兼容思考指示器调研](docs/research/upstream-reasoning-indicator.md)
 - [DSH plugin 发布机制调研](docs/research/dsh-plugin-publishing.md)
 
-贡献代码应包含聚焦测试并通过 `pnpm verify`；修改事件、Slot、DOM Adapter 或 bundle 行为时，还需把最终 tarball 安装到干净的 DSH `0.1.2-alpha.1` Web Profile 验证。
+---
 
-## 许可与归属
+## 📄 许可与归属
 
-MIT。原始思考指示器从 DeepSeek Harness commit `6d7ae5aa57b4dedfc03b09de7cafb65c01338800` 抽离。DeepSeek Harness 为 Copyright (c) 2026 DeepSeek，并按 MIT License 分发；独立打包和后续修改由 `dsh-thinkbar` contributors 维护。
+[MIT License](LICENSE)
+
+原始思考指示器逻辑抽离自 DeepSeek Harness commit `6d7ae5aa57b4dedfc03b09de7cafb65c01338800`。DeepSeek Harness 版权归 DeepSeek (c) 2026 所有，按 MIT 协议分发；独立打包与后续扩展由 `dsh-thinkbar` 贡献者维护。

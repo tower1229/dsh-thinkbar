@@ -1,114 +1,161 @@
-# dsh-thinkbar
+<div align="center">
 
-English | [中文](README.zh.md)
+# 🧠 dsh-thinkbar
 
-`dsh-thinkbar` is a Web UI plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). It fills the existing model selector while the visible assistant Step is streaming reasoning.
+**Dynamic reasoning-wait visual indicator for DeepSeek Harness Web Composer**
 
-![Demo](assets/思考指示器演示.gif)
+[![npm version](https://img.shields.io/npm/v/dsh-thinkbar.svg?style=flat-square)](https://www.npmjs.com/package/dsh-thinkbar)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+[![DSH Compatibility](https://img.shields.io/badge/DSH-0.1.2--alpha.1-8a2be2?style=flat-square)](https://github.com/deepseek-ai/deepseek-harness)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-3178c6?style=flat-square)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D22.19.0-brightgreen.svg?style=flat-square)](https://nodejs.org)
 
-The indicator starts at 8%, fills toward 100% over 20 seconds with an ease-out curve, and moves through Harness info blue, red, orange, and yellow. It drains in 240 ms when text, a Tool call, the final message, or the Step boundary ends reasoning. Session changes clear the previous indicator, and reduced-motion mode skips the drain and particle movement.
+<p align="center">
+  <b>English</b> | <a href="README.zh.md">简体中文</a>
+</p>
 
-## Requirements
+<br>
 
-- DeepSeek Harness source build `0.1.2-alpha.1`
-- The standard DSH `web` Profile with the official model-selection plugin
-- Node.js `^22.19.0` or `>=24.0.0`
+<img src="assets/思考指示器演示.gif" alt="dsh-thinkbar Demo" width="760" style="border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.1);" />
 
-This release supports exactly `0.1.2-alpha.1`. That Harness version is currently a source-build target rather than a published npm release. Earlier RCs used different Conversation services and are not supported.
+</div>
 
-## Install
+---
 
-After the package is published:
+`dsh-thinkbar` is a lightweight, non-intrusive Web UI plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). It seamlessly fills the existing model selector with a dynamic thermal gradient while the visible assistant Step is streaming reasoning thoughts.
+
+## ✨ Key Features
+
+- 🌡️ **Thermal Iron Scale Palette**: Smooth transition from initial Harness info blue (0s) through red (~6.7s), orange (~13.3s), and glowing gold (20s) with an ease-out progression curve.
+- ⚡ **Zero-Intrusion Portal Adapter**: Injects through the public `conversation.input.right` Slot lifecycle without hacking DSH internals, generated CSS classes, or model label strings.
+- 🎯 **Accurate Stream State Machine**: Strictly tracks `reasoning` chunk boundaries. Direct text and tool-only calls never flash the indicator.
+- 💨 **Fluid Drain Animation**: Drains smoothly in 240ms when reasoning yields to text, tool calls, or message completion.
+- ♿ **Accessibility Ready**: Fully respects `prefers-reduced-motion` settings.
+- 🔒 **100% Client-Side & Private**: Zero backend modifications, zero telemetry, zero external network traffic.
+
+---
+
+## 📋 Requirements
+
+| Dependency | Required Version | Note |
+| :--- | :--- | :--- |
+| **DeepSeek Harness** | `0.1.2-alpha.1` (source build) | Supports exact source build target |
+| **Profile** | Standard DSH `web` Profile | Official model-selection plugin enabled |
+| **Node.js** | `^22.19.0` \|\| `>=24.0.0` | Recommended LTS |
+| **Package Manager** | `pnpm` (>= 9.0) | Standard DSH workflow |
+
+> [!IMPORTANT]
+> This release supports exactly `0.1.2-alpha.1`. Earlier RCs used different Conversation service interfaces and are not supported.
+
+---
+
+## 🚀 Quick Start
+
+### Installation
+
+Install via npm registry:
 
 ```sh
 pnpm dsh plugin --profile web add dsh-thinkbar
 ```
 
-To test a local release tarball instead:
+Or test a local release tarball:
 
 ```sh
 pnpm dsh plugin --profile web add ./dsh-thinkbar-<version>.tgz
 ```
 
-Restart the Web Profile after installation. Bundle changes are applied when the Profile starts. Verify the Bundle layer and Loader row with:
+Restart your DSH Web Profile after installation:
+
+```sh
+pnpm dsh web
+```
+
+Verify that `dsh-thinkbar` is loaded:
 
 ```sh
 pnpm dsh --profile web --dump-config
 ```
+*(The output must contain exactly one `dsh-thinkbar` row)*
 
-The output must contain exactly one `dsh-thinkbar` row.
-
-## Upgrade and uninstall
-
-Install the desired version explicitly, then restart:
+### Upgrade & Uninstall
 
 ```sh
+# Upgrade to a specific version
 pnpm dsh plugin --profile web add dsh-thinkbar@<version>
-```
 
-Remove the plugin and restart the Profile:
-
-```sh
+# Uninstall plugin
 pnpm dsh plugin --profile web remove dsh-thinkbar
 ```
 
-## How it works
+---
 
-The plugin derives `{ waitOrigin, streamTime, active, tailKind }` from the public `ctx.uiConversation.events` and `ctx.uiConversation.views` registries. A `step/start` records the clock without displaying anything; the first reasoning block activates the fill. Direct text and Tool-only responses never flash the indicator.
-
-The original Harness does not provide an additive child Slot inside the model selector. The plugin therefore registers a lifecycle anchor in the public `conversation.input.right` Slot, identifies the single following semantic `button[aria-haspopup="menu"]` inside `[data-composer-card]`, and portals one plugin-owned layer into it. It does not depend on generated class names, model labels, localization, React internals, or the button's child structure.
-
-If the model trigger cannot be identified uniquely, the plugin leaves the DOM unchanged and emits one browser-console compatibility warning:
+## 🔍 How It Works
 
 ```text
-[dsh-thinkbar] Could not uniquely identify the DeepSeek Harness model selector; the indicator is disabled.
+[ step/start ] ──> Record Clock Anchor (Idle)
+       │
+[ assistant/chunk: reasoning ] ──> Activate Fill (8% -> 100%, 0s -> 20s)
+       │                              │
+       │                              └──> Palette: Blue -> Red -> Orange -> Yellow
+       │
+[ text / tool-call / step/end ] ──> Fast Drain (240ms) -> Return to Idle
 ```
 
-There are no settings. The plugin has no Host behavior and does not change prompts, messages, schemas, tools, provider requests, or KV-cache behavior. It sends no telemetry and uploads no data.
+1. **State Projection**: Derives `{ waitOrigin, streamTime, active, tailKind }` from the public `ctx.uiConversation.events` and `ctx.uiConversation.views` registries.
+2. **Anchor & Portal**: Anchors in `conversation.input.right`, identifies the trailing `button[aria-haspopup="menu"]` within `[data-composer-card]`, and portals an isolated plugin layer.
+3. **Safety Fallback**: If the model trigger cannot be identified uniquely, the DOM remains untouched with a single console notice:
+   ```text
+   [dsh-thinkbar] Could not uniquely identify the DeepSeek Harness model selector; the indicator is disabled.
+   ```
 
-## Troubleshooting
+---
 
-- **Nothing changes after installation:** restart the Web Profile and confirm `dsh-thinkbar` appears in `pnpm dsh --profile web --dump-config`.
-- **The client bundle fails to load:** verify the DSH source build is exactly `0.1.2-alpha.1`, reinstall, restart, and inspect the browser console and Host stderr.
-- **A compatibility warning appears:** confirm the official model-selection plugin is enabled and no other plugin has added another menu trigger after `conversation.input.right`.
-- **No fill appears for a response:** the indicator activates only after the first reasoning event. Direct text or Tool-only output intentionally remains idle.
-- **Removal appears ineffective:** restart the Profile after `pnpm dsh plugin --profile web remove dsh-thinkbar`.
+## 🛠️ Troubleshooting
 
-## Development
+| Issue | Root Cause | Solution |
+| :--- | :--- | :--- |
+| **No visual changes after install** | Profile not restarted or bundle unlinked | Restart Web Profile and verify with `pnpm dsh --profile web --dump-config`. |
+| **Client bundle load failure** | DSH version mismatch | Ensure DSH source is `0.1.2-alpha.1`. Inspect browser console and host stderr. |
+| **Compatibility warning in console** | Missing or conflicting model trigger | Ensure official model-selection plugin is enabled without conflicting custom buttons. |
+| **Indicator does not light up** | Non-reasoning output | Indicator only triggers on reasoning streams; direct text or tool calls stay idle by design. |
+| **Changes persist after removal** | Cached Profile process | Restart the Profile after `pnpm dsh plugin --profile web remove dsh-thinkbar`. |
+
+---
+
+## 🧑‍💻 Development
 
 ```sh
+# Install dependencies
 pnpm install --frozen-lockfile
+
+# Run typecheck, unit tests, build validation & publint
 pnpm verify
+
+# Pack local tarball
 pnpm pack
 ```
 
-`pnpm verify` runs TypeScript checking, unit/component tests, the standalone DSH client build, tarball-contract checks, and `publint`.
-
-### Publishing
-
-Log in to npm once with `npm login`. Every release after that is a single command:
+### Release Pipeline
 
 ```sh
+# One-command automated publish suite
 npm run publish
-```
 
-The release script verifies the npm identity, keeps the current version when it is still unpublished or increments the patch version when it already exists, runs the complete verification suite, packs one release tarball, writes its SHA-256 checksum, publishes that exact tarball, and verifies its registry integrity. Release files are written to `.smoke/release/`. It deliberately does not commit, tag, or push Git changes.
-
-Exercise the complete flow without publishing:
-
-```sh
+# Dry-run validation without publishing
 npm run publish -- --dry-run
 ```
 
-The browser artifact is a DSH lazy-CJS factory, not an ordinary application module. Preserve its exact `window.__ModuleLoader__.load(...)` envelope.
+The browser artifact is a DSH lazy-CJS factory. Always preserve its `window.__ModuleLoader__.load(...)` envelope.
 
-Contributor references:
-
+### Contributor References
 - [Upstream-compatible reasoning indicator research](docs/research/upstream-reasoning-indicator.md)
 - [DSH plugin publishing research](docs/research/dsh-plugin-publishing.md)
 
-Contributions should include focused tests, pass `pnpm verify`, and verify the packed tarball against a clean DSH `0.1.2-alpha.1` Web Profile when changing event, Slot, DOM-adapter, or bundle behavior.
+---
 
-## License and attribution
+## 📄 License and Attribution
 
-MIT. The original reasoning indicator was extracted from DeepSeek Harness commit `6d7ae5aa57b4dedfc03b09de7cafb65c01338800`. DeepSeek Harness is Copyright (c) 2026 DeepSeek and distributed under the MIT License. Independent packaging and subsequent modifications are maintained by the `dsh-thinkbar` contributors.
+[MIT License](LICENSE)
+
+The original reasoning indicator design was extracted from DeepSeek Harness commit `6d7ae5aa57b4dedfc03b09de7cafb65c01338800`. DeepSeek Harness is Copyright (c) 2026 DeepSeek and distributed under the MIT License. Independent packaging and subsequent modifications are maintained by the `dsh-thinkbar` contributors.
