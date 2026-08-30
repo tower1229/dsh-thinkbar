@@ -39,7 +39,7 @@
     "build": "pnpm run clean && tsc -p tsconfig.build.json && tsdown",
     "pack:check": "pnpm run build && node scripts/verify-package.mjs",
     "verify": "pnpm run typecheck && pnpm run test && pnpm run pack:check && publint --pack npm --strict",
-    "publish": "node scripts/publish.mjs",
+    "release": "node scripts/publish.mjs",
     "prepack": "pnpm run build"
   },
   "engines": {
