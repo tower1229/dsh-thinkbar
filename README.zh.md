@@ -4,6 +4,8 @@
 
 `dsh-thinkbar` 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 Web UI 插件。当前可见助手 Step 正在流式输出 reasoning 时，它会填充现有模型选择器作为思考指示器。
 
+![效果演示](assets/思考指示器演示.gif)
+
 指示器从 8% 起步，在 20 秒内按 ease-out 曲线填满，并沿 Harness info blue、红、橙、黄变化。reasoning 转为正文或 Tool call、助手消息完成或 Step 结束后，填充在 240ms 内抽空。切换会话会清除旧指示器；reduced-motion 模式会跳过抽空和粒子运动。
 
 ## 运行要求

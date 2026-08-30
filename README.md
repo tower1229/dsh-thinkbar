@@ -4,6 +4,8 @@ English | [中文](README.zh.md)
 
 `dsh-thinkbar` is a Web UI plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). It fills the existing model selector while the visible assistant Step is streaming reasoning.
 
+![Demo](assets/思考指示器演示.gif)
+
 The indicator starts at 8%, fills toward 100% over 20 seconds with an ease-out curve, and moves through Harness info blue, red, orange, and yellow. It drains in 240 ms when text, a Tool call, the final message, or the Step boundary ends reasoning. Session changes clear the previous indicator, and reduced-motion mode skips the drain and particle movement.
 
 ## Requirements
