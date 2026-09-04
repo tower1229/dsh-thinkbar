@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import type { ReasoningWaitProjection } from './projection-types.ts'
-import type { ReasoningWaitFill } from './fill-face.ts'
+import type { ReasoningWaitFrame } from './fill-face.ts'
 import type { ReasoningWaitState, StreamClockAnchor } from './thermometer.ts'
 import css from './ReasoningWaitIndicator.module.css'
 
-export interface ReasoningWaitIndicatorProps extends ReasoningWaitFill {
+export interface ReasoningWaitIndicatorProps extends ReasoningWaitFrame {
   readonly identity: string
   readonly projection: ReasoningWaitProjection | null | undefined
 }

@@ -86,14 +86,26 @@ describe('model trigger DOM adapter', () => {
   })
 })
 
-function bridgeProps(projection: ReasoningWaitProjection): ModelTriggerBridgeProps {
-  const snapshot = {
-    sessionId: SESSION_ID,
-    views: { get: () => projection },
+function projectionSource(initial: ReasoningWaitProjection | null | undefined) {
+  let current = initial
+  const listeners = new Set<() => void>()
+  return {
+    getSnapshot: () => current,
+    subscribe: (listener: () => void) => {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+    publish: (projection: ReasoningWaitProjection | null | undefined) => {
+      current = projection
+      for (const listener of listeners) listener()
+    },
   }
+}
+
+function bridgeProps(projection: ReasoningWaitProjection): ModelTriggerBridgeProps {
   return {
     sessionId: SESSION_ID,
-    useConversation: <Selected,>(selector: (value: typeof snapshot) => Selected): Selected => selector(snapshot),
+    projectionSource: projectionSource(projection),
     clock: extrapolateProjectionClock,
     advance: advanceReasoningWait,
   }
@@ -130,5 +142,35 @@ describe('ModelTriggerBridge', () => {
     expect(clicked).toHaveBeenCalledOnce()
     view.unmount()
     expect(document.querySelector('[data-dsh-thinkbar-layer]')).toBeNull()
+  })
+
+  it('subscribes to the lazy target source and renders its published projection', async () => {
+    vi.spyOn(performance, 'now').mockReturnValue(1_000)
+    const source = projectionSource(undefined)
+    const subscribe = vi.spyOn(source, 'subscribe')
+    const props: ModelTriggerBridgeProps = {
+      sessionId: SESSION_ID,
+      projectionSource: source,
+      clock: extrapolateProjectionClock,
+      advance: advanceReasoningWait,
+    }
+    const view = render(
+      <div data-composer-card="">
+        <button type="button" aria-haspopup="menu">command</button>
+        <ModelTriggerBridge {...props} />
+        <button type="button" aria-haspopup="menu">model</button>
+      </div>,
+    )
+    expect(subscribe).toHaveBeenCalledOnce()
+
+    source.publish({
+      turn: 1, step: 1, waitOrigin: 1_000, streamTime: 1_000, active: true, tailKind: 'reasoning',
+    })
+    await waitFor(() => {
+      expect(view.container.querySelector('[data-reasoning-wait="thermometer"]')).not.toBeNull()
+    })
+
+    view.unmount()
+    expect(source.subscribe).toHaveBeenCalledOnce()
   })
 })

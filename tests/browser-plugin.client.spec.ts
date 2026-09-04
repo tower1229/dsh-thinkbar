@@ -10,9 +10,15 @@ describe('dsh-thinkbar browser half', () => {
   })
 
   it('registers its projection and contributes the public Slot bridge', () => {
-    const register = vi.fn(() => vi.fn())
+    const register = vi.fn((_options: unknown, _component: unknown) => vi.fn())
     const registerEvent = vi.fn(() => vi.fn())
     const registerView = vi.fn(() => vi.fn())
+    const projection = {
+      getSnapshot: vi.fn(() => undefined),
+      subscribe: vi.fn(() => vi.fn()),
+    }
+    const target = vi.fn((_target: string) => projection)
+    const binding = vi.fn((_sessionId: string) => ({ target }))
     const injectSlot = vi.fn((_name: string, install: () => unknown) => install())
     const plugin = vi.fn()
     const ctx = {
@@ -22,6 +28,7 @@ describe('dsh-thinkbar browser half', () => {
       uiConversation: {
         events: { register: registerEvent },
         views: { register: registerView },
+        binding,
       },
     } as unknown as Context
 
@@ -38,6 +45,14 @@ describe('dsh-thinkbar browser half', () => {
       expect.objectContaining({ name: 'conversation.input.right', id: 'dsh-thinkbar', order: 20 }),
       expect.any(Function),
     )
+
+    const slotOptions = register.mock.calls[0]?.[0] as { inject: (sessionId: string) => unknown }
+    const injected = slotOptions.inject('session-42')
+    expect(binding).toHaveBeenCalledWith('session-42')
+    expect(target).toHaveBeenCalledWith('dsh-thinkbar')
+    expect(injected).toHaveProperty('projectionSource', projection)
+    expect(injected).toHaveProperty('clock')
+    expect(injected).toHaveProperty('advance')
   })
 })
 

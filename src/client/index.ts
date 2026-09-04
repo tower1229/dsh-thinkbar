@@ -2,7 +2,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { ReasoningWaitService } from './service.ts'
 import { ModelTriggerBridge } from './ModelTriggerBridge.tsx'
-import type { ReasoningWaitFill } from './fill-face.ts'
+import type { ReasoningWaitFill, ReasoningWaitProjectionSource } from './fill-face.ts'
 import { reasoningWaitDefinition, reasoningWaitView } from './reasoning-wait-projection.ts'
 
 export { ReasoningWaitService } from './service.ts'
@@ -22,6 +22,9 @@ interface ThinkbarClientContext extends Context {
   readonly uiConversation: {
     readonly events: { register(definition: unknown): () => void }
     readonly views: { register(definition: unknown): () => void }
+    readonly binding: (sessionId: string) => {
+      readonly target: (target: string) => ReasoningWaitProjectionSource
+    }
   }
   readonly slots: {
     inject(name: string, install: () => unknown): unknown
@@ -42,10 +45,11 @@ export function apply(ctx: Context): void {
     name: 'conversation.input.right',
     id: 'dsh-thinkbar',
     order: 20,
-    inject: (): ReasoningWaitFill => {
+    inject: (sessionId: string): ReasoningWaitFill => {
       const reasoningWait = (): ReasoningWaitService | undefined =>
         client.get('reasoningWait') as ReasoningWaitService | undefined
       return {
+        projectionSource: client.uiConversation.binding(sessionId).target('dsh-thinkbar'),
         clock: (projection, frameNow, anchor, identity) =>
           reasoningWait()?.clock(projection, frameNow, anchor, identity) ?? { elapsed: 0, anchor: null },
         advance: (previous, input) => reasoningWait()?.advance(previous, input) ?? { phase: 'idle' },

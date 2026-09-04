@@ -6,7 +6,7 @@
 
 [![npm version](https://img.shields.io/npm/v/dsh-thinkbar.svg?style=flat-square)](https://www.npmjs.com/package/dsh-thinkbar)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![DSH Compatibility](https://img.shields.io/badge/DSH-0.1.2--alpha.1-8a2be2?style=flat-square)](https://github.com/deepseek-ai/deepseek-harness)
+[![DSH Compatibility](https://img.shields.io/badge/DSH-0.1.2--alpha.4-8a2be2?style=flat-square)](https://github.com/deepseek-ai/deepseek-harness)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-3178c6?style=flat-square)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.19.0-brightgreen.svg?style=flat-square)](https://nodejs.org)
 
@@ -39,13 +39,13 @@
 
 | Dependency | Required Version | Note |
 | :--- | :--- | :--- |
-| **DeepSeek Harness** | `0.1.2-alpha.1` (source build) | Supports exact source build target |
+| **DeepSeek Harness** | `0.1.2-alpha.4` | Supports the current lazy-target Conversation lifecycle |
 | **Profile** | Standard DSH `web` Profile | Official model-selection plugin enabled |
 | **Node.js** | `^22.19.0` \|\| `>=24.0.0` | Recommended LTS |
 | **Package Manager** | `pnpm` (>= 9.0) | Standard DSH workflow |
 
 > [!IMPORTANT]
-> This release supports exactly `0.1.2-alpha.1`. Earlier RCs used different Conversation service interfaces and are not supported.
+> This release supports exactly `0.1.2-alpha.4`. Earlier builds used different Conversation target lifecycles and are not supported.
 
 ---
 
@@ -116,7 +116,7 @@ pnpm dsh plugin --profile web remove dsh-thinkbar
 | Issue | Root Cause | Solution |
 | :--- | :--- | :--- |
 | **No visual changes after install** | Profile not restarted or bundle unlinked | Restart Web Profile and verify with `pnpm dsh --profile web --dump-config`. |
-| **Client bundle load failure** | DSH version mismatch | Ensure DSH source is `0.1.2-alpha.1`. Inspect browser console and host stderr. |
+| **Client bundle load failure** | DSH version mismatch | Ensure DSH is `0.1.2-alpha.4`. Inspect browser console and host stderr. |
 | **Compatibility warning in console** | Missing or conflicting model trigger | Ensure official model-selection plugin is enabled without conflicting custom buttons. |
 | **Indicator does not light up** | Non-reasoning output | Indicator only triggers on reasoning streams; direct text or tool calls stay idle by design. |
 | **Changes persist after removal** | Cached Profile process | Restart the Profile after `pnpm dsh plugin --profile web remove dsh-thinkbar`. |
