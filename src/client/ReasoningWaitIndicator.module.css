@@ -21,6 +21,46 @@
   pointer-events: none;
 }
 
+.toolOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.toolSweep {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    oklch(55% 0.22 292deg) 0%,
+    oklch(59% 0.2 275deg) 28%,
+    oklch(65% 0.16 220deg) 50%,
+    oklch(59% 0.2 275deg) 72%,
+    oklch(55% 0.22 292deg) 100%
+  );
+  background-size: 240% 100%;
+  animation: tool-activity-sweep 1.4s linear infinite;
+}
+
+.toolLabel {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  max-width: calc(100% - 12px);
+  overflow: hidden;
+  color: var(--dsw-static-neutral-bluish-00, oklch(98% 0.006 260deg));
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px oklch(20% 0.04 275deg / 55%);
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+}
+
 .root {
   z-index: 0;
   overflow: hidden;
@@ -53,8 +93,23 @@
   }
 }
 
+@keyframes tool-activity-sweep {
+  from {
+    background-position: 100% 0;
+  }
+
+  to {
+    background-position: -140% 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .particle {
     animation: none;
+  }
+
+  .toolSweep {
+    animation: none;
+    background-position: 50% 0;
   }
 }

@@ -22,13 +22,14 @@
 
 ---
 
-`dsh-thinkbar` 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的轻量级、无侵入 Web UI 插件。在当前可见助手 Step 正在流式输出思考链（reasoning thoughts）时，它会为现有的模型选择器填充动态热感进度与色彩渐变。
+`dsh-thinkbar` 是 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的轻量级、无侵入 Web UI 插件。它会在每个助手 Step 的模型思考阶段为现有模型选择器填充动态热感渐变，并在该 Step 调用工具时切换为独立的 Tool 活动动效。
 
 ## ✨ 核心特性
 
 - 🌡️ **物理热感温阶配色（Iron Scale）**：指示器从 8% 启航，在 20 秒内按 ease-out 曲线平滑填满，沿 Harness 官方信息蓝（0s）→ 红热（~6.7s）→ 橙红（~13.3s）→ 金黄高热（20s）自然过渡。
 - ⚡ **零侵入 Portal 适配**：通过公开的 `conversation.input.right` Slot 生命周期锚点与 DOM 语义发现注入独立图层，不修改 DSH 核心源码、不依赖生成的 CSS 类名或模型文案。
-- 🎯 **精准流式状态机**：严格按 `reasoning` 块边界激活。直接输出正文或纯工具调用时绝不误闪。
+- 🎯 **跨模型逐 Step 状态机**：每次模型请求开始即激活，存在 `reasoning` 块时持续跟随，并在 Tool 调用开始后互斥切换到 Tool 阶段。
+- 🛠️ **可见的 Tool 活动**：使用独立的紫青色扫光，并临时显示当前正在执行的 Tool 名称。
 - 💨 **灵动抽空动效**：当思考转为正文、工具调用或 Step 完成时，在 240ms 内迅速丝滑抽空归零。
 - ♿ **无障碍友好**：深度适配系统 `prefers-reduced-motion` 减弱动态偏好。
 - 🔒 **纯前端无遥测**：无服务端行为、不改变 prompt/消息/请求、零遥测与数据收集。
@@ -93,16 +94,22 @@ pnpm dsh plugin --profile web remove dsh-thinkbar
 ## 🔍 工作原理
 
 ```text
-[ step/start ] ──> 记录时钟锚点 (Idle 待机)
+[ step/start ] ──> 开始思考填充 (8% -> 100%, 0s -> 20s)
        │
-[ assistant/chunk: reasoning ] ──> 激活填充 (8% -> 100%, 0s -> 20s)
+[ assistant/chunk: reasoning ] ──> 继续思考填充
        │                              │
        │                              └──> 配色渐变: 官方蓝 -> 红 -> 橙 -> 金黄
        │
-[ text / tool-call / step/end ] ──> 快速抽空 (240ms) -> 回到 Idle 待机
+[ text / step/end ] ──────────────> 快速抽空 (240ms) -> 回到 Idle 待机
+
+[ assistant tool-call / tool/call ] ──> 停止思考计时 + 快速抽空 (240ms)
+                   │
+                   └──> 超过 200ms 后显示紫青 Tool 扫光与名称
+                                      │
+[ 最后一个匹配的 tool/result ] ───────┴──> 保持 Idle，等待下一次 step/start
 ```
 
-1. **状态投影（Projection）**：通过公开的 `ctx.uiConversation.events` 和 `ctx.uiConversation.views` 实时推导 `{ waitOrigin, streamTime, active, tailKind }`。
+1. **状态投影（Projection）**：通过公开的 `ctx.uiConversation.events` 和 `ctx.uiConversation.views` 为每个 `{ turn, step }` 推导互斥的思考与 Tool 阶段。并行 Tool 仍按 call ID 独立配对，但该 Step 的思考计时保持停止。
 2. **生命周期锚定与 Portal**：在 `conversation.input.right` 注册锚点，在 `[data-composer-card]` 容器内寻找其后唯一的 `button[aria-haspopup="menu"]` 语义按钮，并 Portal 挂载插件图层。
 3. **安全降级机制**：若无法唯一识别模型按钮，插件保持 DOM 纯净并仅在控制台输出一次兼容性提示：
    ```text

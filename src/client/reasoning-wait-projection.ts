@@ -1,6 +1,6 @@
-import type { ReasoningWaitProjection, ReasoningWaitTailKind } from './projection-types.ts'
+import type { ActiveToolCall, ReasoningWaitProjection, ReasoningWaitTailKind } from './projection-types.ts'
 
-export type { ReasoningWaitProjection, ReasoningWaitTailKind } from './projection-types.ts'
+export type { ActiveToolCall, ReasoningWaitProjection, ReasoningWaitTailKind } from './projection-types.ts'
 
 interface ProjectionEventBase<Type extends string, Data> {
   readonly type: Type
@@ -12,6 +12,20 @@ interface ProjectionEventBase<Type extends string, Data> {
 interface StepData {
   readonly turn: number
   readonly step: number
+}
+
+interface ToolCallData extends StepData {
+  readonly callId: string
+  readonly name: string
+}
+
+interface ToolResultData extends StepData {
+  readonly callId?: string
+  readonly message?: {
+    readonly source?: {
+      readonly callId?: string
+    }
+  }
 }
 
 type AssistantChunk =
@@ -27,6 +41,8 @@ type ScalarProjectionEvent =
   | ProjectionEventBase<'step/end', StepData>
   | ProjectionEventBase<'assistant/chunk', StepData & { readonly chunk: AssistantChunk }>
   | ProjectionEventBase<'assistant/message', StepData>
+  | ProjectionEventBase<'tool/call', ToolCallData>
+  | ProjectionEventBase<'tool/result', ToolResultData>
   | ProjectionEventBase<'llm/retry', StepData>
   | ProjectionEventBase<'llm/retry-started', StepData>
 
@@ -75,6 +91,7 @@ interface ProjectionViewDefinition<Node extends ProjectionViewNode, Snapshot> {
 
 interface ReasoningWaitState extends ReasoningWaitProjection {
   readonly retryPending: boolean
+  readonly toolPhaseStarted: boolean
 }
 
 interface ReasoningWaitNode extends ProjectionViewNode {
@@ -109,7 +126,11 @@ function isCompactChunkEvent(event: ProjectionEvent): event is CompactChunkEvent
 }
 
 function projectionOf(state: ReasoningWaitState): ReasoningWaitProjection {
-  const { retryPending: _retryPending, ...projection } = state
+  const {
+    retryPending: _retryPending,
+    toolPhaseStarted: _toolPhaseStarted,
+    ...projection
+  } = state
   return projection
 }
 
@@ -119,11 +140,44 @@ function eventIdentity(event: ProjectionEvent): string | null {
     || event.type === 'step/end'
     || event.type === 'assistant/chunk'
     || event.type === 'assistant/message'
+    || event.type === 'tool/call'
+    || event.type === 'tool/result'
     || event.type === 'llm/retry'
     || event.type === 'llm/retry-started') {
     return `${event.data.turn}:${event.data.step}`
   }
   return null
+}
+
+function startTool(state: ReasoningWaitState, event: ProjectionEventBase<'tool/call', ToolCallData>): ReasoningWaitState {
+  const tool: ActiveToolCall = {
+    callId: event.data.callId,
+    name: event.data.name,
+    startedAt: event.time,
+  }
+  return {
+    ...state,
+    streamTime: event.time,
+    active: false,
+    tailKind: 'tool',
+    retryPending: false,
+    toolPhaseStarted: true,
+    tools: [...state.tools.filter(active => active.callId !== tool.callId), tool],
+  }
+}
+
+function resultCallId(data: ToolResultData): string | null {
+  return data.callId ?? data.message?.source?.callId ?? null
+}
+
+function finishTool(state: ReasoningWaitState, event: ProjectionEventBase<'tool/result', ToolResultData>): ReasoningWaitState {
+  const callId = resultCallId(event.data)
+  if (callId === null) return state
+  return {
+    ...state,
+    streamTime: event.time,
+    tools: state.tools.filter(tool => tool.callId !== callId),
+  }
 }
 
 function transition(
@@ -133,6 +187,7 @@ function transition(
   active: boolean,
   originTime = time,
 ): ReasoningWaitState {
+  if (state.toolPhaseStarted) return { ...state, streamTime: time }
   return {
     ...state,
     waitOrigin: state.retryPending && tailKind === 'reasoning' ? originTime : state.waitOrigin,
@@ -143,6 +198,17 @@ function transition(
   }
 }
 
+function enterToolPhase(state: ReasoningWaitState, time: number): ReasoningWaitState {
+  return {
+    ...state,
+    streamTime: time,
+    active: false,
+    tailKind: 'tool',
+    retryPending: false,
+    toolPhaseStarted: true,
+  }
+}
+
 function chunkTransition(state: ReasoningWaitState, match: ProjectionMatch): ReasoningWaitState {
   if (match.event.type !== 'assistant/chunk') return state
   const { chunk } = match.event.data
@@ -150,18 +216,18 @@ function chunkTransition(state: ReasoningWaitState, match: ProjectionMatch): Rea
     case 'block-start':
       if (chunk.blockType === 'reasoning') return transition(state, match.event.time, 'reasoning', true)
       if (chunk.blockType === 'text') return transition(state, match.event.time, 'text', false)
-      if (chunk.blockType === 'tool-call') return transition(state, match.event.time, 'tool', false)
+      if (chunk.blockType === 'tool-call') return enterToolPhase(state, match.event.time)
       return transition(state, match.event.time, 'other', false)
     case 'reasoning-delta':
       return transition(state, match.event.time, 'reasoning', true)
     case 'text-delta':
       return transition(state, match.event.time, 'text', false)
     case 'tool-call-delta':
-      return transition(state, match.event.time, 'tool', false)
+      return enterToolPhase(state, match.event.time)
     case 'block-end':
       if (chunk.block.type === 'reasoning') return transition(state, match.event.time, 'reasoning', true)
       if (chunk.block.type === 'text') return transition(state, match.event.time, 'text', false)
-      if (chunk.block.type === 'tool-call') return transition(state, match.event.time, 'tool', false)
+      if (chunk.block.type === 'tool-call') return enterToolPhase(state, match.event.time)
       return transition(state, match.event.time, 'other', false)
     default:
       return state
@@ -190,18 +256,35 @@ function compactTransition(state: ReasoningWaitState, event: CompactChunkEvent):
       : transition(state, streamTime, 'reasoning', true, firstEvidenceTime)
   }
   if (event.type === 'chunkrow/text-chunks') return transition(state, streamTime, 'text', false)
-  return transition(state, streamTime, 'tool', false)
+  return enterToolPhase(state, streamTime)
 }
 
 function updateState(state: ReasoningWaitState, match: ProjectionMatch): ReasoningWaitState {
   const event = match.event as ProjectionEvent
   if (isCompactChunkEvent(event)) return compactTransition(state, event)
   if (event.type === 'assistant/chunk') return chunkTransition(state, match)
-  if (event.type === 'llm/retry' || event.type === 'llm/retry-started') {
+  if (event.type === 'tool/call') return startTool(state, event)
+  if (event.type === 'tool/result') return finishTool(state, event)
+  if (event.type === 'llm/retry') {
+    if (state.toolPhaseStarted) return { ...state, streamTime: event.time }
     return { ...state, streamTime: event.time, active: false, tailKind: 'empty', retryPending: true }
   }
-  if (event.type === 'assistant/message' || event.type === 'step/end') {
+  if (event.type === 'llm/retry-started') {
+    if (state.toolPhaseStarted) return { ...state, streamTime: event.time }
+    return {
+      ...state,
+      waitOrigin: event.time,
+      streamTime: event.time,
+      active: true,
+      tailKind: 'empty',
+      retryPending: false,
+    }
+  }
+  if (event.type === 'assistant/message') {
     return { ...state, streamTime: event.time, active: false, retryPending: false }
+  }
+  if (event.type === 'step/end') {
+    return { ...state, streamTime: event.time, active: false, retryPending: false, tools: [] }
   }
   return state
 }
@@ -222,9 +305,11 @@ export const reasoningWaitDefinition: ProjectionNodeDefinition<ReasoningWaitStat
       step: match.event.data.step,
       waitOrigin: match.event.time,
       streamTime: match.event.time,
-      active: false,
+      active: true,
       tailKind: 'empty',
+      tools: [],
       retryPending: false,
+      toolPhaseStarted: false,
     }
   },
   update: (context, match) => updateState(context.state, match),
@@ -248,9 +333,15 @@ export const reasoningWaitDefinition: ProjectionNodeDefinition<ReasoningWaitStat
 function latestProjection(nodes: Iterable<ReasoningWaitNode>): ReasoningWaitProjection | null {
   let latest: ReasoningWaitNode | undefined
   for (const node of nodes) {
-    if (latest === undefined || node.anchorSeq > latest.anchorSeq) latest = node
+    if (latest === undefined || compareProjectionNodes(node, latest) > 0) latest = node
   }
   return latest?.data ?? null
+}
+
+function compareProjectionNodes(left: ReasoningWaitNode, right: ReasoningWaitNode): number {
+  if (left.data.turn !== right.data.turn) return left.data.turn - right.data.turn
+  if (left.data.step !== right.data.step) return left.data.step - right.data.step
+  return left.anchorSeq - right.anchorSeq
 }
 
 /** Session-owned reducer selecting the latest Step projection. */

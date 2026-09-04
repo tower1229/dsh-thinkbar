@@ -4,6 +4,8 @@ import type { ReasoningWaitFrame } from './fill-face.ts'
 import type { ReasoningWaitState, StreamClockAnchor } from './thermometer.ts'
 import css from './ReasoningWaitIndicator.module.css'
 
+const TOOL_REVEAL_DELAY_MS = 200
+
 export interface ReasoningWaitIndicatorProps extends ReasoningWaitFrame {
   readonly identity: string
   readonly projection: ReasoningWaitProjection | null | undefined
@@ -53,52 +55,132 @@ function particleStyle(particle: FillParticle): CSSProperties {
   } as CSSProperties
 }
 
+function toolKey(identity: string, callId: string): string {
+  return `${identity}:${callId}`
+}
+
+function useVisibleTools(
+  tools: ReasoningWaitProjection['tools'],
+  identity: string,
+): ReasoningWaitProjection['tools'] {
+  const [visibleKeys, setVisibleKeys] = useState<ReadonlySet<string>>(() => new Set())
+  const visibleKeysRef = useRef<ReadonlySet<string>>(visibleKeys)
+  const activeKeysRef = useRef<ReadonlySet<string>>(new Set())
+  const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  const activeKeys = new Set(tools.map(tool => toolKey(identity, tool.callId)))
+  activeKeysRef.current = activeKeys
+
+  useEffect(() => {
+    for (const [key, timer] of timersRef.current) {
+      if (activeKeys.has(key)) continue
+      clearTimeout(timer)
+      timersRef.current.delete(key)
+    }
+
+    const retainedVisibleKeys = new Set([...visibleKeysRef.current].filter(key => activeKeys.has(key)))
+    if (retainedVisibleKeys.size !== visibleKeysRef.current.size) {
+      visibleKeysRef.current = retainedVisibleKeys
+      setVisibleKeys(retainedVisibleKeys)
+    }
+
+    for (const tool of tools) {
+      const key = toolKey(identity, tool.callId)
+      if (visibleKeysRef.current.has(key) || timersRef.current.has(key)) continue
+      const timer = setTimeout(() => {
+        timersRef.current.delete(key)
+        if (!activeKeysRef.current.has(key)) return
+        const nextVisibleKeys = new Set(visibleKeysRef.current)
+        nextVisibleKeys.add(key)
+        visibleKeysRef.current = nextVisibleKeys
+        setVisibleKeys(nextVisibleKeys)
+      }, TOOL_REVEAL_DELAY_MS)
+      timersRef.current.set(key, timer)
+    }
+  }, [identity, tools])
+
+  useEffect(() => () => {
+    for (const timer of timersRef.current.values()) clearTimeout(timer)
+    timersRef.current.clear()
+  }, [])
+
+  return tools.filter(tool => visibleKeys.has(toolKey(identity, tool.callId)))
+}
+
 export function ReasoningWaitIndicator({ identity, projection, clock, advance }: ReasoningWaitIndicatorProps) {
   const [waitState, setWaitState] = useState<ReasoningWaitState>({ phase: 'idle' })
   const clockAnchorRef = useRef<StreamClockAnchor | null>(null)
+  const clockCycleRef = useRef<string | null>(null)
+  const frameFloorRef = useRef(0)
   const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ?? false
-  const frameNow = useFrameNow(projection?.active === true || waitState.phase !== 'idle')
+  const sampledFrameNow = useFrameNow(projection?.active === true || waitState.phase !== 'idle')
+  const clockCycle = projection?.active === true
+    ? `${identity}:${projection.waitOrigin}`
+    : null
+  if (clockCycleRef.current !== clockCycle) {
+    clockCycleRef.current = clockCycle
+    clockAnchorRef.current = null
+    if (clockCycle !== null) frameFloorRef.current = performance.now()
+  }
+  const frameNow = clockCycle === null
+    ? sampledFrameNow
+    : Math.max(sampledFrameNow, frameFloorRef.current)
   const clockRead = clock(projection, frameNow, clockAnchorRef.current, identity)
   clockAnchorRef.current = clockRead.anchor
   const input = { projection, elapsed: clockRead.elapsed, frameNow, reducedMotion, identity }
   const view = advance(waitState, input)
+  const tools = projection?.tools ?? []
+  const visibleTools = useVisibleTools(tools, identity)
+  const toolNames = [...new Set(visibleTools.map(tool => tool.name))]
+  const toolActivity = `正在调用工具：${toolNames.join(' · ')}`
 
   useLayoutEffect(() => {
     setWaitState(previous => advance(previous, input))
   }, [projection, clockRead.elapsed, frameNow, reducedMotion, identity, advance])
 
-  if (view.phase === 'idle') return null
+  if (view.phase === 'idle' && toolNames.length === 0) return null
   return (
-    <span className={css.root} data-reasoning-wait={view.phase} aria-hidden="true">
-      <span
-        className={css.fill}
-        data-reasoning-wait-fill=""
-        style={{ width: `${view.height * 100}%`, backgroundColor: view.color }}
-      >
-        {FILL_PARTICLES.map((particle, index) => (
+    <>
+      {view.phase === 'idle' ? null : (
+        <span className={css.root} data-reasoning-wait={view.phase} aria-hidden="true">
           <span
-            key={index}
-            className={css.particle}
-            data-reasoning-wait-particle=""
-            style={particleStyle(particle)}
-          />
-        ))}
-      </span>
-    </span>
+            className={css.fill}
+            data-reasoning-wait-fill=""
+            style={{ width: `${view.height * 100}%`, backgroundColor: view.color }}
+          >
+            {FILL_PARTICLES.map((particle, index) => (
+              <span
+                key={index}
+                className={css.particle}
+                data-reasoning-wait-particle=""
+                style={particleStyle(particle)}
+              />
+            ))}
+          </span>
+        </span>
+      )}
+      {toolNames.length === 0 ? null : (
+        <span className={css.toolOverlay} data-tool-activity="running" aria-hidden="true">
+          <span className={css.toolSweep} />
+          <span className={css.toolLabel} data-tool-names={toolNames.join(',')}>
+            {toolActivity}
+          </span>
+        </span>
+      )}
+    </>
   )
 }
 
 function useFrameNow(active: boolean): number {
-  const [, setTick] = useState(0)
+  const [frameNow, setFrameNow] = useState(() => performance.now())
   useEffect(() => {
     if (!active) return
     let frame = 0
-    const tick = (): void => {
-      setTick(value => value + 1)
+    const tick = (timestamp: number): void => {
+      setFrameNow(timestamp)
       frame = requestAnimationFrame(tick)
     }
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
   }, [active])
-  return performance.now()
+  return frameNow
 }

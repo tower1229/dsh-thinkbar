@@ -3,6 +3,7 @@ import type { ReasoningWaitProjection } from './projection-types.ts'
 const FULL_SCALE_MS = 20_000
 const MIN_FILL = 0.08
 const DRAIN_MS = 240
+const RESTART_RAMP_MS = 120
 
 const IRON_STOPS = [
   { t: 0, hex: 'var(--dsw-alias-button-info-fill)' },
@@ -29,13 +30,21 @@ export interface StreamClockAnchor {
 }
 
 export type ReasoningWaitState =
-  | { readonly phase: 'idle' }
+  | {
+    readonly phase: 'idle'
+    readonly restart?: {
+      readonly identity: string
+      readonly elapsed: number
+    }
+  }
   | {
     readonly phase: 'thermometer'
     readonly identity: string
     readonly t: number
     readonly height: number
     readonly color: string
+    readonly visualOrigin?: number
+    readonly ramp?: boolean
   }
   | {
     readonly phase: 'drain'
@@ -82,39 +91,46 @@ export function extrapolateProjectionClock(
 ): SessionClock {
   if (projection?.active !== true) return { elapsed: 0, anchor: null }
   const eventElapsed = Math.max(0, projection.streamTime - projection.waitOrigin)
-  const stamp = `${identity}:${projection.waitOrigin}:${projection.streamTime}`
+  const stamp = `${identity}:${projection.waitOrigin}`
   if (anchor?.stamp !== stamp) {
-    const elapsed = Math.max(anchor?.identity === identity ? anchor.renderedElapsed : 0, eventElapsed)
     return {
-      elapsed,
-      anchor: { stamp, identity, eventElapsed, observedAt: frameNow, renderedElapsed: elapsed },
+      elapsed: 0,
+      anchor: { stamp, identity, eventElapsed, observedAt: frameNow, renderedElapsed: 0 },
     }
   }
-  const elapsed = Math.max(anchor.renderedElapsed, anchor.eventElapsed + frameNow - anchor.observedAt)
-  return { elapsed, anchor: { ...anchor, renderedElapsed: elapsed } }
+  const elapsed = anchor.renderedElapsed + Math.max(0, frameNow - anchor.observedAt)
+  return {
+    elapsed,
+    anchor: { stamp, identity, eventElapsed, observedAt: frameNow, renderedElapsed: elapsed },
+  }
 }
 
 export function advanceReasoningWait(
   previous: ReasoningWaitState,
   input: ReasoningWaitInput,
 ): ReasoningWaitState {
-  const snapshot = reasoningWaitAppearance(input.projection, input.elapsed)
-  if (snapshot.phase === 'thermometer') {
-    if (
-      previous.phase === 'thermometer'
-      && previous.identity === input.identity
-      && previous.t === snapshot.t
-      && previous.height === snapshot.height
-      && previous.color === snapshot.color
-    ) return previous
-    return { ...snapshot, identity: input.identity }
+  if (input.reducedMotion) {
+    const snapshot = reasoningWaitAppearance(input.projection, input.elapsed)
+    return snapshot.phase === 'idle' ? { phase: 'idle' } : { ...snapshot, identity: input.identity }
   }
-  if (input.reducedMotion) return previous.phase === 'idle' ? previous : { phase: 'idle' }
-  const sameIdentity = previous.phase !== 'idle' && previous.identity === input.identity
-  if (previous.phase === 'thermometer' && sameIdentity) {
+
+  if (previous.phase === 'drain') {
+    const elapsed = input.frameNow - previous.startedAt
+    if (elapsed >= DRAIN_MS) {
+      return input.projection?.active === true
+        ? { phase: 'idle', restart: { identity: input.identity, elapsed: input.elapsed } }
+        : { phase: 'idle' }
+    }
+    const height = previous.fromHeight * (1 - elapsed / DRAIN_MS)
+    if (height === previous.height) return previous
+    return { ...previous, height }
+  }
+
+  if (previous.phase === 'thermometer'
+    && (previous.identity !== input.identity || input.projection?.active !== true)) {
     return {
       phase: 'drain',
-      identity: input.identity,
+      identity: previous.identity,
       t: previous.t,
       height: previous.height,
       color: previous.color,
@@ -122,14 +138,46 @@ export function advanceReasoningWait(
       startedAt: input.frameNow,
     }
   }
-  if (previous.phase === 'drain' && sameIdentity) {
-    const elapsed = input.frameNow - previous.startedAt
-    if (elapsed >= DRAIN_MS) return { phase: 'idle' }
-    const height = previous.fromHeight * (1 - elapsed / DRAIN_MS)
-    if (height === previous.height) return previous
-    return { ...previous, height }
+
+  if (input.projection?.active !== true) {
+    return previous.phase === 'idle' && previous.restart === undefined ? previous : { phase: 'idle' }
   }
-  return previous.phase === 'idle' ? previous : { phase: 'idle' }
+
+  if (previous.phase === 'idle' && previous.restart !== undefined) {
+    return thermometerState(input, input.elapsed, true)
+  }
+
+  const visualOrigin = previous.phase === 'thermometer' ? previous.visualOrigin ?? 0 : 0
+  const ramp = previous.phase === 'thermometer' ? previous.ramp ?? false : false
+  const next = thermometerState(input, visualOrigin, ramp)
+  if (
+    previous.phase === 'thermometer'
+    && previous.identity === next.identity
+    && previous.t === next.t
+    && previous.height === next.height
+    && previous.color === next.color
+    && previous.visualOrigin === next.visualOrigin
+    && previous.ramp === next.ramp
+  ) return previous
+  return next
+}
+
+function thermometerState(
+  input: ReasoningWaitInput,
+  visualOrigin: number,
+  ramp: boolean,
+): Extract<ReasoningWaitState, { readonly phase: 'thermometer' }> {
+  const visualElapsed = Math.max(0, input.elapsed - visualOrigin)
+  const snapshot = reasoningWaitAppearance(input.projection, visualElapsed)
+  if (snapshot.phase === 'idle') throw new Error('thermometer state requires an active projection')
+  const rampProgress = ramp ? Math.min(1, visualElapsed / RESTART_RAMP_MS) : 1
+  return {
+    ...snapshot,
+    identity: input.identity,
+    height: snapshot.height * rampProgress,
+    visualOrigin,
+    ramp: ramp && rampProgress < 1,
+  }
 }
 
 function nearestStop(t: number): string | undefined {

@@ -54,10 +54,11 @@ function event(type: string, seq: number, time: number, data: object): object {
 }
 
 describe('reasoningWaitDefinition', () => {
-  it('records step origin but stays inactive until reasoning evidence', () => {
+  it('starts the user-visible thinking window at Step start and keeps it for reasoning evidence', () => {
     const state = startState()
     expect(projection(state, stepStart().event)).toEqual({
-      turn: 1, step: 1, waitOrigin: 1_000, streamTime: 1_000, active: false, tailKind: 'empty',
+      turn: 1, step: 1, waitOrigin: 1_000, streamTime: 1_000, active: true, tailKind: 'empty',
+      tools: [],
     })
     const reasoningEvent = event('assistant/chunk', 2, 3_000, {
       turn: 1, step: 1, chunk: { type: 'reasoning-delta', index: 0, text: 'plan' },
@@ -83,7 +84,7 @@ describe('reasoningWaitDefinition', () => {
     }
   })
 
-  it('never flashes for direct text or Tool output', () => {
+  it('ends the thinking window when direct text or a Tool call starts streaming', () => {
     const text = event('assistant/chunk', 2, 2_000, {
       turn: 1, step: 1, chunk: { type: 'block-start', index: 0, blockType: 'text' },
     })
@@ -94,7 +95,7 @@ describe('reasoningWaitDefinition', () => {
     expect(projection(update(startState(), tool), tool)).toMatchObject({ active: false, tailKind: 'tool' })
   })
 
-  it('resets retry timing at the next reasoning evidence', () => {
+  it('pauses for retry delay and restarts the thinking window when the retry starts', () => {
     const activeEvent = event('assistant/chunk', 2, 2_000, {
       turn: 1, step: 1, chunk: { type: 'reasoning-delta', index: 0, text: 'first' },
     })
@@ -105,11 +106,18 @@ describe('reasoningWaitDefinition', () => {
     })
     const pending = update(active, retry)
     expect(projection(pending, retry)).toMatchObject({ active: false, tailKind: 'empty' })
-    const second = event('assistant/chunk', 4, 6_000, {
+    const retryStarted = event('llm/retry-started', 4, 5_000, {
+      retryId: 'r1', turn: 1, step: 1, retry: 1,
+    })
+    const restarted = update(pending, retryStarted)
+    expect(projection(restarted, retryStarted)).toMatchObject({
+      active: true, waitOrigin: 5_000, streamTime: 5_000, tailKind: 'empty',
+    })
+    const second = event('assistant/chunk', 5, 6_000, {
       turn: 1, step: 1, chunk: { type: 'reasoning-delta', index: 0, text: 'second' },
     })
-    expect(projection(update(pending, second), second)).toMatchObject({
-      active: true, waitOrigin: 6_000, streamTime: 6_000,
+    expect(projection(update(restarted, second), second)).toMatchObject({
+      active: true, waitOrigin: 5_000, streamTime: 6_000,
     })
   })
 
@@ -128,6 +136,74 @@ describe('reasoningWaitDefinition', () => {
     })
     expect(projection(update(active, tool), tool)).toMatchObject({ active: false, tailKind: 'tool' })
   })
+
+  it('makes Tool execution terminal for reasoning within the same Step', () => {
+    const reasoningEvent = event('assistant/chunk', 2, 2_000, {
+      turn: 1, step: 1, chunk: { type: 'reasoning-delta', index: 0, text: 'plan' },
+    })
+    const reasoning = update(startState(), reasoningEvent)
+    const firstCall = event('tool/call', 3, 3_000, {
+      turn: 1, step: 1, callId: 'c1', name: 'grep', arguments: '{}',
+    })
+    const withFirst = update(reasoning, firstCall)
+    expect(projection(withFirst, firstCall)).toMatchObject({
+      active: false,
+      tailKind: 'tool',
+      tools: [{ callId: 'c1', name: 'grep', startedAt: 3_000 }],
+    })
+
+    const lateReasoning = event('assistant/chunk', 4, 3_050, {
+      turn: 1, step: 1, chunk: { type: 'reasoning-delta', index: 0, text: 'late' },
+    })
+    const afterLateReasoning = update(withFirst, lateReasoning)
+    expect(projection(afterLateReasoning, lateReasoning)).toMatchObject({
+      active: false,
+      tailKind: 'tool',
+    })
+
+    const lateRetry = event('llm/retry-started', 5, 3_075, {
+      retryId: 'late-retry', turn: 1, step: 1, retry: 1,
+    })
+    const afterLateRetry = update(afterLateReasoning, lateRetry)
+    expect(projection(afterLateRetry, lateRetry)).toMatchObject({
+      active: false,
+      tailKind: 'tool',
+    })
+
+    const secondCall = event('tool/call', 6, 3_100, {
+      turn: 1, step: 1, callId: 'c2', name: 'glob', arguments: '{}',
+    })
+    const withBoth = update(afterLateRetry, secondCall)
+    expect(projection(withBoth, secondCall).tools.map(tool => tool.name)).toEqual(['grep', 'glob'])
+
+    const firstResult = event('tool/result', 7, 4_000, {
+      turn: 1, step: 1, message: { source: { callId: 'c1' } },
+    })
+    const withSecond = update(withBoth, firstResult)
+    expect(projection(withSecond, firstResult)).toMatchObject({
+      active: false,
+      tailKind: 'tool',
+      tools: [{ callId: 'c2', name: 'glob', startedAt: 3_100 }],
+    })
+
+    const secondResult = event('tool/result', 8, 4_100, {
+      turn: 1, step: 1, callId: 'c2',
+    })
+    expect(projection(update(withSecond, secondResult), secondResult)).toMatchObject({
+      active: false,
+      tailKind: 'tool',
+      tools: [],
+    })
+  })
+
+  it('clears unfinished Tool activity when its Step ends', () => {
+    const call = event('tool/call', 2, 2_000, {
+      turn: 1, step: 1, callId: 'c1', name: 'bash', arguments: '{}',
+    })
+    const running = update(startState(), call)
+    const end = event('step/end', 3, 3_000, { turn: 1, step: 1 })
+    expect(projection(update(running, end), end).tools).toEqual([])
+  })
 })
 
 describe('reasoningWaitView', () => {
@@ -137,7 +213,7 @@ describe('reasoningWaitView', () => {
       key, kind: 'dsh-thinkbar/reasoning-wait', id: key, target: 'dsh-thinkbar', anchorSeq, data,
     } as ProjectionViewNode)
     const first = waitingProjection(1, 1)
-    const second = waitingProjection(2, 1)
+    const second = { ...waitingProjection(1, 1), streamTime: 3_000 }
     expect(builder.replace({
       nodes: [node('second', 4, second), node('first', 2, first)] as never,
       timeline: emptyTimeline(),
@@ -145,12 +221,29 @@ describe('reasoningWaitView', () => {
     expect(builder.apply({
       upserts: [node('first', 5, { ...first, active: false })] as never,
       timeline: emptyTimeline(),
-    })).toMatchObject({ turn: 1, active: false })
+    })).toMatchObject({ turn: 1, step: 1, active: false })
+  })
+
+  it('never resurfaces an older Step when it receives a later event sequence', () => {
+    const builder = reasoningWaitView.create()
+    const node = (key: string, anchorSeq: number, data: ReasoningWaitProjection): ProjectionViewNode => ({
+      key, kind: 'dsh-thinkbar/reasoning-wait', id: key, target: 'dsh-thinkbar', anchorSeq, data,
+    } as ProjectionViewNode)
+    const first = waitingProjection(1, 1)
+    const second = waitingProjection(1, 2)
+    expect(builder.replace({
+      nodes: [node('first', 10, first), node('second', 11, second)] as never,
+      timeline: emptyTimeline(),
+    })).toEqual(second)
+    expect(builder.apply({
+      upserts: [node('first', 12, { ...first, active: false })] as never,
+      timeline: emptyTimeline(),
+    })).toEqual(second)
   })
 })
 
 function waitingProjection(turn: number, step: number): ReasoningWaitProjection {
-  return { turn, step, waitOrigin: 1_000, streamTime: 2_000, active: true, tailKind: 'reasoning' }
+  return { turn, step, waitOrigin: 1_000, streamTime: 2_000, active: true, tailKind: 'reasoning', tools: [] }
 }
 
 function emptyTimeline() {

@@ -8,6 +8,7 @@ import { reasoningWaitDefinition, reasoningWaitView } from './reasoning-wait-pro
 export { ReasoningWaitService } from './service.ts'
 export type { ReasoningWaitFill } from './fill-face.ts'
 export type {
+  ActiveToolCall,
   ReasoningWaitProjection,
   ReasoningWaitTailKind,
 } from './projection-types.ts'

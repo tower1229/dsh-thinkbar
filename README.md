@@ -22,13 +22,14 @@
 
 ---
 
-`dsh-thinkbar` is a lightweight, non-intrusive Web UI plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). It seamlessly fills the existing model selector with a dynamic thermal gradient while the visible assistant Step is streaming reasoning thoughts.
+`dsh-thinkbar` is a lightweight, non-intrusive Web UI plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). It fills the existing model selector with a dynamic thermal gradient during each assistant Step's model-thinking window, and overlays a separate Tool activity treatment while that Step's tools execute.
 
 ## ✨ Key Features
 
 - 🌡️ **Thermal Iron Scale Palette**: Smooth transition from initial Harness info blue (0s) through red (~6.7s), orange (~13.3s), and glowing gold (20s) with an ease-out progression curve.
 - ⚡ **Zero-Intrusion Portal Adapter**: Injects through the public `conversation.input.right` Slot lifecycle without hacking DSH internals, generated CSS classes, or model label strings.
-- 🎯 **Accurate Stream State Machine**: Strictly tracks `reasoning` chunk boundaries. Direct text and tool-only calls never flash the indicator.
+- 🎯 **Model-Compatible Per-Step State Machine**: Starts with each model request, follows explicit `reasoning` chunks when available, and switches exclusively to Tool activity when a call begins.
+- 🛠️ **Visible Tool Activity**: Uses a distinct violet/cyan sweep and temporarily overlays the names of every currently executing Tool.
 - 💨 **Fluid Drain Animation**: Drains smoothly in 240ms when reasoning yields to text, tool calls, or message completion.
 - ♿ **Accessibility Ready**: Fully respects `prefers-reduced-motion` settings.
 - 🔒 **100% Client-Side & Private**: Zero backend modifications, zero telemetry, zero external network traffic.
@@ -93,16 +94,22 @@ pnpm dsh plugin --profile web remove dsh-thinkbar
 ## 🔍 How It Works
 
 ```text
-[ step/start ] ──> Record Clock Anchor (Idle)
+[ step/start ] ──> Start Thinking Fill (8% -> 100%, 0s -> 20s)
        │
-[ assistant/chunk: reasoning ] ──> Activate Fill (8% -> 100%, 0s -> 20s)
+[ assistant/chunk: reasoning ] ──> Continue Thinking Fill
        │                              │
        │                              └──> Palette: Blue -> Red -> Orange -> Yellow
        │
-[ text / tool-call / step/end ] ──> Fast Drain (240ms) -> Return to Idle
+[ text / step/end ] ──────────────> Fast Drain (240ms) -> Return to Idle
+
+[ assistant tool-call / tool/call ] ──> Stop Thinking Clock + Fast Drain (240ms)
+                   │
+                   └──> After 200ms, show violet/cyan Tool sweep + name overlay
+                                      │
+[ final matching tool/result ] ───────┴──> Return to Idle until next step/start
 ```
 
-1. **State Projection**: Derives `{ waitOrigin, streamTime, active, tailKind }` from the public `ctx.uiConversation.events` and `ctx.uiConversation.views` registries.
+1. **State Projection**: Derives mutually exclusive Thinking and Tool phases for each `{ turn, step }` from the public `ctx.uiConversation.events` and `ctx.uiConversation.views` registries. Parallel Tools remain paired independently by call ID, while the Thinking clock stays stopped for the rest of that Step.
 2. **Anchor & Portal**: Anchors in `conversation.input.right`, identifies the trailing `button[aria-haspopup="menu"]` within `[data-composer-card]`, and portals an isolated plugin layer.
 3. **Safety Fallback**: If the model trigger cannot be identified uniquely, the DOM remains untouched with a single console notice:
    ```text
@@ -118,7 +125,7 @@ pnpm dsh plugin --profile web remove dsh-thinkbar
 | **No visual changes after install** | Profile not restarted or bundle unlinked | Restart Web Profile and verify with `pnpm dsh --profile web --dump-config`. |
 | **Client bundle load failure** | DSH version mismatch | Ensure DSH is `0.1.2-alpha.4`. Inspect browser console and host stderr. |
 | **Compatibility warning in console** | Missing or conflicting model trigger | Ensure official model-selection plugin is enabled without conflicting custom buttons. |
-| **Indicator does not light up** | Non-reasoning output | Indicator only triggers on reasoning streams; direct text or tool calls stay idle by design. |
+| **Thinking fill does not light up** | No active model Step reached the client projection | Inspect the browser console and verify the Conversation target subscription. Tool execution uses its separate activity treatment. |
 | **Changes persist after removal** | Cached Profile process | Restart the Profile after `pnpm dsh plugin --profile web remove dsh-thinkbar`. |
 
 ---
