@@ -6,7 +6,7 @@
 
 [![npm version](https://img.shields.io/npm/v/dsh-thinkbar.svg?style=flat-square)](https://www.npmjs.com/package/dsh-thinkbar)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![DSH Compatibility](https://img.shields.io/badge/DSH-0.1.2--alpha.4-8a2be2?style=flat-square)](https://github.com/deepseek-ai/deepseek-harness)
+[![DSH Compatibility](https://img.shields.io/badge/DSH-0.2.1--rc.2-8a2be2?style=flat-square)](https://github.com/deepseek-ai/deepseek-harness)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-3178c6?style=flat-square)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.19.0-brightgreen.svg?style=flat-square)](https://nodejs.org)
 
@@ -40,13 +40,13 @@
 
 | 依赖项 | 要求版本 | 说明 |
 | :--- | :--- | :--- |
-| **DeepSeek Harness** | `0.1.2-alpha.4` | 支持当前按需物化 Conversation 生命周期 |
+| **DeepSeek Harness** | `0.2.1-rc.2` | 支持当前按需物化 Conversation 生命周期 |
 | **Profile** | 标准 DSH `web` Profile | 需启用官方模型选择插件 |
 | **Node.js** | `^22.19.0` \|\| `>=24.0.0` | 推荐 LTS 版本 |
 | **包管理器** | `pnpm` (>= 9.0) | DSH 推荐工作流 |
 
 > [!IMPORTANT]
-> 当前版本精确兼容 `0.1.2-alpha.4`。早期版本使用了不同的 Conversation Target 生命周期，暂不支持。
+> 当前版本精确兼容 `0.2.1-rc.2`。早期版本使用了不同的 Conversation Target 生命周期，暂不支持。
 
 ---
 
@@ -96,7 +96,7 @@ pnpm dsh plugin --profile web remove dsh-thinkbar
 ```text
 [ step/start ] ──> 开始思考填充 (8% -> 100%, 0s -> 20s)
        │
-[ assistant/chunk: reasoning ] ──> 继续思考填充
+[ assistant/live-chunk: reasoning ] ──> 继续思考填充
        │                              │
        │                              └──> 配色渐变: 官方蓝 -> 红 -> 橙 -> 金黄
        │
@@ -123,7 +123,7 @@ pnpm dsh plugin --profile web remove dsh-thinkbar
 | 现象 | 可能原因 | 解决办法 |
 | :--- | :--- | :--- |
 | **安装后页面无变化** | 未重启 Profile 或 Bundle 未生效 | 重启 Web Profile，并通过 `pnpm dsh --profile web --dump-config` 确认插件存在。 |
-| **client bundle 加载失败** | DSH 版本不匹配 | 确认 DSH 版本精确为 `0.1.2-alpha.4`，检查浏览器控制台与服务端 stderr。 |
+| **client bundle 加载失败** | DSH 版本不匹配 | 确认 DSH 版本精确为 `0.2.1-rc.2`，检查浏览器控制台与服务端 stderr。 |
 | **控制台出现兼容性告警** | 缺少模型选择器或存在冲突按钮 | 确认已启用官方模型选择插件，且无其他插件在右侧 Slot 插入同名菜单按钮。 |
 | **模型回答时指示器未激活** | 本次回答未产生 reasoning 块 | 指示器仅在收到 reasoning 事件后激活，直接输出正文或 Tool 调用时保持待机。 |
 | **卸载后残留显示** | 进程缓存未释放 | 执行卸载命令后必须重启 Profile 服务。 |

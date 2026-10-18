@@ -60,8 +60,8 @@ describe('reasoningWaitDefinition', () => {
       turn: 1, step: 1, waitOrigin: 1_000, streamTime: 1_000, active: true, tailKind: 'empty',
       tools: [],
     })
-    const reasoningEvent = event('assistant/chunk', 2, 3_000, {
-      turn: 1, step: 1, chunk: { type: 'reasoning-delta', index: 0, text: 'plan' },
+    const reasoningEvent = event('assistant/live-chunk', 2, 3_000, {
+      attemptId: 'attempt-1', turn: 1, step: 1, chunk: { type: 'reasoning-delta', index: 0, text: 'plan' },
     })
     const reasoning = update(state, reasoningEvent)
     expect(projection(reasoning, reasoningEvent)).toMatchObject({
@@ -70,13 +70,13 @@ describe('reasoningWaitDefinition', () => {
   })
 
   it('closes on text, tool, final message, and step end', () => {
-    const activeEvent = event('assistant/chunk', 2, 2_000, {
-      turn: 1, step: 1, chunk: { type: 'block-start', index: 0, blockType: 'reasoning' },
+    const activeEvent = event('assistant/live-chunk', 2, 2_000, {
+      attemptId: 'attempt-1', turn: 1, step: 1, chunk: { type: 'block-start', index: 0, blockType: 'reasoning' },
     })
     const active = update(startState(), activeEvent)
     for (const closing of [
-      event('assistant/chunk', 3, 3_000, { turn: 1, step: 1, chunk: { type: 'text-delta', index: 1, text: 'done' } }),
-      event('assistant/chunk', 3, 3_000, { turn: 1, step: 1, chunk: { type: 'tool-call-delta', index: 1, id: 'c1', argumentsDelta: '{}' } }),
+      event('assistant/live-chunk', 3, 3_000, { attemptId: 'attempt-1', turn: 1, step: 1, chunk: { type: 'text-delta', index: 1, text: 'done' } }),
+      event('assistant/live-chunk', 3, 3_000, { attemptId: 'attempt-1', turn: 1, step: 1, chunk: { type: 'tool-call-delta', index: 1, id: 'c1', argumentsDelta: '{}' } }),
       event('assistant/message', 3, 3_000, { turn: 1, step: 1, message: { id: 'm1', role: 'assistant', content: [] } }),
       event('step/end', 3, 3_000, { turn: 1, step: 1 }),
     ]) {
@@ -85,19 +85,19 @@ describe('reasoningWaitDefinition', () => {
   })
 
   it('ends the thinking window when direct text or a Tool call starts streaming', () => {
-    const text = event('assistant/chunk', 2, 2_000, {
-      turn: 1, step: 1, chunk: { type: 'block-start', index: 0, blockType: 'text' },
+    const text = event('assistant/live-chunk', 2, 2_000, {
+      attemptId: 'attempt-1', turn: 1, step: 1, chunk: { type: 'block-start', index: 0, blockType: 'text' },
     })
-    const tool = event('assistant/chunk', 2, 2_000, {
-      turn: 1, step: 1, chunk: { type: 'block-start', index: 0, blockType: 'tool-call' },
+    const tool = event('assistant/live-chunk', 2, 2_000, {
+      attemptId: 'attempt-1', turn: 1, step: 1, chunk: { type: 'block-start', index: 0, blockType: 'tool-call' },
     })
     expect(projection(update(startState(), text), text)).toMatchObject({ active: false, tailKind: 'text' })
     expect(projection(update(startState(), tool), tool)).toMatchObject({ active: false, tailKind: 'tool' })
   })
 
   it('pauses for retry delay and restarts the thinking window when the retry starts', () => {
-    const activeEvent = event('assistant/chunk', 2, 2_000, {
-      turn: 1, step: 1, chunk: { type: 'reasoning-delta', index: 0, text: 'first' },
+    const activeEvent = event('assistant/live-chunk', 2, 2_000, {
+      attemptId: 'attempt-1', turn: 1, step: 1, chunk: { type: 'reasoning-delta', index: 0, text: 'first' },
     })
     const active = update(startState(), activeEvent)
     const retry = event('llm/retry', 3, 4_000, {
@@ -113,33 +113,17 @@ describe('reasoningWaitDefinition', () => {
     expect(projection(restarted, retryStarted)).toMatchObject({
       active: true, waitOrigin: 5_000, streamTime: 5_000, tailKind: 'empty',
     })
-    const second = event('assistant/chunk', 5, 6_000, {
-      turn: 1, step: 1, chunk: { type: 'reasoning-delta', index: 0, text: 'second' },
+    const second = event('assistant/live-chunk', 5, 6_000, {
+      attemptId: 'attempt-1', turn: 1, step: 1, chunk: { type: 'reasoning-delta', index: 0, text: 'second' },
     })
     expect(projection(update(restarted, second), second)).toMatchObject({
       active: true, waitOrigin: 5_000, streamTime: 6_000,
     })
   })
 
-  it('accepts compact reasoning, text, and Tool chunk rows', () => {
-    const reasoning = event('chunkrow/reasoning-chunks', 2, 2_000, {
-      turn: 1, step: 1, index: 0, texts: ['', 'plan'], dt: [25],
-    })
-    const active = update(startState(), reasoning)
-    expect(projection(active, reasoning)).toMatchObject({ active: true, streamTime: 2_025 })
-    const text = event('chunkrow/text-chunks', 4, 3_000, {
-      turn: 1, step: 1, index: 1, texts: ['done'], dt: [],
-    })
-    expect(projection(update(active, text), text)).toMatchObject({ active: false, tailKind: 'text' })
-    const tool = event('chunkrow/tool-call-chunks', 5, 4_000, {
-      turn: 1, step: 1, index: 2, args: ['{}'], dt: [],
-    })
-    expect(projection(update(active, tool), tool)).toMatchObject({ active: false, tailKind: 'tool' })
-  })
-
   it('makes Tool execution terminal for reasoning within the same Step', () => {
-    const reasoningEvent = event('assistant/chunk', 2, 2_000, {
-      turn: 1, step: 1, chunk: { type: 'reasoning-delta', index: 0, text: 'plan' },
+    const reasoningEvent = event('assistant/live-chunk', 2, 2_000, {
+      attemptId: 'attempt-1', turn: 1, step: 1, chunk: { type: 'reasoning-delta', index: 0, text: 'plan' },
     })
     const reasoning = update(startState(), reasoningEvent)
     const firstCall = event('tool/call', 3, 3_000, {
@@ -152,8 +136,8 @@ describe('reasoningWaitDefinition', () => {
       tools: [{ callId: 'c1', name: 'grep', startedAt: 3_000 }],
     })
 
-    const lateReasoning = event('assistant/chunk', 4, 3_050, {
-      turn: 1, step: 1, chunk: { type: 'reasoning-delta', index: 0, text: 'late' },
+    const lateReasoning = event('assistant/live-chunk', 4, 3_050, {
+      attemptId: 'attempt-1', turn: 1, step: 1, chunk: { type: 'reasoning-delta', index: 0, text: 'late' },
     })
     const afterLateReasoning = update(withFirst, lateReasoning)
     expect(projection(afterLateReasoning, lateReasoning)).toMatchObject({

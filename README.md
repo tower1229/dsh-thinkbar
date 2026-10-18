@@ -6,7 +6,7 @@
 
 [![npm version](https://img.shields.io/npm/v/dsh-thinkbar.svg?style=flat-square)](https://www.npmjs.com/package/dsh-thinkbar)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![DSH Compatibility](https://img.shields.io/badge/DSH-0.1.2--alpha.4-8a2be2?style=flat-square)](https://github.com/deepseek-ai/deepseek-harness)
+[![DSH Compatibility](https://img.shields.io/badge/DSH-0.2.1--rc.2-8a2be2?style=flat-square)](https://github.com/deepseek-ai/deepseek-harness)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-3178c6?style=flat-square)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.19.0-brightgreen.svg?style=flat-square)](https://nodejs.org)
 
@@ -40,13 +40,13 @@
 
 | Dependency | Required Version | Note |
 | :--- | :--- | :--- |
-| **DeepSeek Harness** | `0.1.2-alpha.4` | Supports the current lazy-target Conversation lifecycle |
+| **DeepSeek Harness** | `0.2.1-rc.2` | Supports the current lazy-target Conversation lifecycle |
 | **Profile** | Standard DSH `web` Profile | Official model-selection plugin enabled |
 | **Node.js** | `^22.19.0` \|\| `>=24.0.0` | Recommended LTS |
 | **Package Manager** | `pnpm` (>= 9.0) | Standard DSH workflow |
 
 > [!IMPORTANT]
-> This release supports exactly `0.1.2-alpha.4`. Earlier builds used different Conversation target lifecycles and are not supported.
+> This release supports exactly `0.2.1-rc.2`. Earlier builds used different Conversation target lifecycles and are not supported.
 
 ---
 
@@ -96,7 +96,7 @@ pnpm dsh plugin --profile web remove dsh-thinkbar
 ```text
 [ step/start ] ──> Start Thinking Fill (8% -> 100%, 0s -> 20s)
        │
-[ assistant/chunk: reasoning ] ──> Continue Thinking Fill
+[ assistant/live-chunk: reasoning ] ──> Continue Thinking Fill
        │                              │
        │                              └──> Palette: Blue -> Red -> Orange -> Yellow
        │
@@ -123,7 +123,7 @@ pnpm dsh plugin --profile web remove dsh-thinkbar
 | Issue | Root Cause | Solution |
 | :--- | :--- | :--- |
 | **No visual changes after install** | Profile not restarted or bundle unlinked | Restart Web Profile and verify with `pnpm dsh --profile web --dump-config`. |
-| **Client bundle load failure** | DSH version mismatch | Ensure DSH is `0.1.2-alpha.4`. Inspect browser console and host stderr. |
+| **Client bundle load failure** | DSH version mismatch | Ensure DSH is `0.2.1-rc.2`. Inspect browser console and host stderr. |
 | **Compatibility warning in console** | Missing or conflicting model trigger | Ensure official model-selection plugin is enabled without conflicting custom buttons. |
 | **Thinking fill does not light up** | No active model Step reached the client projection | Inspect the browser console and verify the Conversation target subscription. Tool execution uses its separate activity treatment. |
 | **Changes persist after removal** | Cached Profile process | Restart the Profile after `pnpm dsh plugin --profile web remove dsh-thinkbar`. |
