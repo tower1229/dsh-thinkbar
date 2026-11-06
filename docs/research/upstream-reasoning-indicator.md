@@ -23,7 +23,7 @@ DSH `0.2.2-rc.1` replaced the live Assistant stream representation that the
 | Conversation registries | `events.register`, `views.register`, `binding().target()` | Unchanged contract; `binding()` now throws for unknown or stale Session bindings, so resolution fails closed |
 | `slots` registration | `{ name, id, order, inject }` + `slots.inject(name, install)` | Unchanged |
 
-`dsh-thinkbar@0.1.5` therefore matches `assistant/live-chunk` (published at
+`dsh-thinkbar@0.2.0` therefore matches `assistant/live-chunk` (published at
 `animation-frame` cadence) and drops the `0.1.x` chunk forms. The rest of the
 design in this document still applies: the projection reducer, Tool terminal
 state within one Step, retry handling, and the DOM adapter are unchanged.

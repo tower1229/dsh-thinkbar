@@ -46,7 +46,7 @@
 | **Package Manager** | `pnpm` (>= 9.0) | Standard DSH workflow |
 
 > [!IMPORTANT]
-> This release targets the DSH `0.2` client surface (`^0.2.2-rc.1`). DSH `0.1.x` delivered live Assistant output as `assistant/chunk` and compact `chunkrow/*` rows; `0.1.5` no longer consumes those events. Stay on `dsh-thinkbar@0.1.4` if you are still running DSH `0.1.2-alpha.4`.
+> This release targets the DSH `0.2` client surface (`^0.2.2-rc.1`). DSH `0.1.x` delivered live Assistant output as `assistant/chunk` and compact `chunkrow/*` rows; `0.2.0` no longer consumes those events. Stay on `dsh-thinkbar@0.1.4` if you are still running DSH `0.1.2-alpha.4`.
 
 ---
 

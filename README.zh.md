@@ -46,7 +46,7 @@
 | **包管理器** | `pnpm` (>= 9.0) | DSH 推荐工作流 |
 
 > [!IMPORTANT]
-> 当前版本适配 DSH `0.2` 客户端接口（`^0.2.2-rc.1`）。DSH `0.1.x` 的实时输出是 `assistant/chunk` 与折叠的 `chunkrow/*` 事件，`0.1.5` 不再消费这些事件；若仍在使用 DSH `0.1.2-alpha.4`，请继续使用 `dsh-thinkbar@0.1.4`。
+> 当前版本适配 DSH `0.2` 客户端接口（`^0.2.2-rc.1`）。DSH `0.1.x` 的实时输出是 `assistant/chunk` 与折叠的 `chunkrow/*` 事件，`0.2.0` 不再消费这些事件；若仍在使用 DSH `0.1.2-alpha.4`，请继续使用 `dsh-thinkbar@0.1.4`。
 
 ---
 
