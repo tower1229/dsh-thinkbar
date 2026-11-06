@@ -36,6 +36,26 @@ interface ThinkbarClientContext extends Context {
 /** Required public Conversation assembly and renderer registry. */
 export const inject = ['slots', 'uiConversation']
 
+const INACTIVE_PROJECTION: ReasoningWaitProjectionSource = {
+  getSnapshot: () => null,
+  subscribe: () => () => {},
+}
+
+/**
+ * Resolve the session-owned projection source.
+ *
+ * DSH 0.2 throws from `binding()` for an unknown or stale Session binding, so
+ * resolution fails closed into an inactive source instead of crashing the Slot
+ * entry (which the renderer would otherwise retire for the Session lifetime).
+ */
+function projectionSource(client: ThinkbarClientContext, sessionId: string): ReasoningWaitProjectionSource {
+  try {
+    return client.uiConversation.binding(sessionId).target('dsh-thinkbar')
+  } catch {
+    return INACTIVE_PROJECTION
+  }
+}
+
 /** Mount the projection, frame service, and public-Slot DOM bridge. */
 export function apply(ctx: Context): void {
   const client = ctx as ThinkbarClientContext
@@ -50,7 +70,7 @@ export function apply(ctx: Context): void {
       const reasoningWait = (): ReasoningWaitService | undefined =>
         client.get('reasoningWait') as ReasoningWaitService | undefined
       return {
-        projectionSource: client.uiConversation.binding(sessionId).target('dsh-thinkbar'),
+        projectionSource: projectionSource(client, sessionId),
         clock: (projection, frameNow, anchor, identity) =>
           reasoningWait()?.clock(projection, frameNow, anchor, identity) ?? { elapsed: 0, anchor: null },
         advance: (previous, input) => reasoningWait()?.advance(previous, input) ?? { phase: 'idle' },

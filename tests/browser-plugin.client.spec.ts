@@ -54,6 +54,32 @@ describe('dsh-thinkbar browser half', () => {
     expect(injected).toHaveProperty('clock')
     expect(injected).toHaveProperty('advance')
   })
+
+  it('fails closed when the Session binding is stale', () => {
+    const register = vi.fn((_options: unknown, _component: unknown) => vi.fn())
+    const ctx = {
+      plugin: vi.fn(),
+      get: vi.fn(() => undefined),
+      slots: { inject: vi.fn((_name: string, install: () => unknown) => install()), register },
+      uiConversation: {
+        events: { register: vi.fn() },
+        views: { register: vi.fn() },
+        binding: vi.fn(() => {
+          throw new Error('unknown session')
+        }),
+      },
+    } as unknown as Context
+
+    expect(() => apply(ctx)).not.toThrow()
+    const slotOptions = register.mock.calls[0]?.[0] as {
+      inject: (sessionId: string) => {
+        projectionSource: { getSnapshot(): unknown; subscribe(listener: () => void): () => void }
+      }
+    }
+    const injected = slotOptions.inject('stale-session')
+    expect(injected.projectionSource.getSnapshot()).toBeNull()
+    expect(injected.projectionSource.subscribe(() => {})).toBeTypeOf('function')
+  })
 })
 
 describe('dsh-thinkbar node half', () => {

@@ -9,6 +9,25 @@ Research date: 2026-08-30
 - Locally verified `0.1.2-alpha.1` source revision:
   `869feb8842da4371450a62ff726d626db13f3dd4`
 
+## 2026-11-06 update: the DSH 0.2 event surface
+
+DSH `0.2.2-rc.1` replaced the live Assistant stream representation that the
+`0.1.x` release consumed:
+
+| Surface | DSH `0.1.2-alpha.4` | DSH `0.2.2-rc.1` |
+| --- | --- | --- |
+| Live stream | Session event `assistant/chunk` (`data.chunk`) | Client-only transient event `assistant/live-chunk` (`data.attemptId`, `data.turn`, `data.step`, `data.chunk`) |
+| Compacted history | `chunkrow/text-chunks`, `chunkrow/reasoning-chunks`, `chunkrow/tool-call-chunks` | Removed; durable `assistant/message` carries a lossless `stream` of `AssistantStreamRecord[]` and transient rows are retired on settlement |
+| Settlement | `assistant/message` | `assistant/message` (now also `assistant/attempt`, whose transient rows are retired together) |
+| Tool result pairing | `data.message.source.callId` | Unchanged (`data.message.source.callId`) |
+| Conversation registries | `events.register`, `views.register`, `binding().target()` | Unchanged contract; `binding()` now throws for unknown or stale Session bindings, so resolution fails closed |
+| `slots` registration | `{ name, id, order, inject }` + `slots.inject(name, install)` | Unchanged |
+
+`dsh-thinkbar@0.1.5` therefore matches `assistant/live-chunk` (published at
+`animation-frame` cadence) and drops the `0.1.x` chunk forms. The rest of the
+design in this document still applies: the projection reducer, Tool terminal
+state within one Step, retry handling, and the DOM adapter are unchanged.
+
 ## Conclusion
 
 The original Harness already exposes enough supported API to implement the

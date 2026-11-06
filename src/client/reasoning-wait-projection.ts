@@ -35,12 +35,24 @@ type AssistantChunk =
   | { readonly type: 'tool-call-delta' }
   | { readonly type: 'block-end'; readonly block: { readonly type: 'reasoning' | 'text' | 'tool-call' | string } }
   | { readonly type: 'usage' }
+  | { readonly type: 'finish' }
 
-type ScalarProjectionEvent =
+/**
+ * DSH >= 0.2 presents the live model stream as one client-only transient event
+ * (`assistant/live-chunk`) carrying a raw `StreamChunk`; durable
+ * `assistant/message` settlement later replaces those transient rows.
+ */
+interface LiveChunkEvent extends ProjectionEventBase<'assistant/live-chunk', StepData & {
+  readonly attemptId: string
+  readonly chunk: AssistantChunk
+}> {}
+
+type ProjectionEvent =
   | ProjectionEventBase<'step/start', StepData>
   | ProjectionEventBase<'step/end', StepData>
-  | ProjectionEventBase<'assistant/chunk', StepData & { readonly chunk: AssistantChunk }>
+  | LiveChunkEvent
   | ProjectionEventBase<'assistant/message', StepData>
+  | ProjectionEventBase<'assistant/attempt', StepData>
   | ProjectionEventBase<'tool/call', ToolCallData>
   | ProjectionEventBase<'tool/result', ToolResultData>
   | ProjectionEventBase<'llm/retry', StepData>
@@ -100,31 +112,6 @@ interface ReasoningWaitNode extends ProjectionViewNode {
   readonly data: ReasoningWaitProjection
 }
 
-interface CompactChunkEvent {
-  readonly type:
-    | 'chunkrow/text-chunks'
-    | 'chunkrow/reasoning-chunks'
-    | 'chunkrow/tool-call-chunks'
-  readonly seq: number
-  readonly time: number
-  readonly data: {
-    readonly turn: number
-    readonly step: number
-    readonly dt: readonly number[]
-    readonly texts?: readonly string[]
-    readonly args?: readonly string[]
-  }
-}
-
-type ProjectionEvent = ScalarProjectionEvent | CompactChunkEvent
-
-function isCompactChunkEvent(event: ProjectionEvent): event is CompactChunkEvent {
-  const type = String(event.type)
-  return type === 'chunkrow/text-chunks'
-    || type === 'chunkrow/reasoning-chunks'
-    || type === 'chunkrow/tool-call-chunks'
-}
-
 function projectionOf(state: ReasoningWaitState): ReasoningWaitProjection {
   const {
     retryPending: _retryPending,
@@ -135,11 +122,11 @@ function projectionOf(state: ReasoningWaitState): ReasoningWaitProjection {
 }
 
 function eventIdentity(event: ProjectionEvent): string | null {
-  if (isCompactChunkEvent(event)) return `${event.data.turn}:${event.data.step}`
   if (event.type === 'step/start'
     || event.type === 'step/end'
-    || event.type === 'assistant/chunk'
+    || event.type === 'assistant/live-chunk'
     || event.type === 'assistant/message'
+    || event.type === 'assistant/attempt'
     || event.type === 'tool/call'
     || event.type === 'tool/result'
     || event.type === 'llm/retry'
@@ -185,12 +172,11 @@ function transition(
   time: number,
   tailKind: ReasoningWaitTailKind,
   active: boolean,
-  originTime = time,
 ): ReasoningWaitState {
   if (state.toolPhaseStarted) return { ...state, streamTime: time }
   return {
     ...state,
-    waitOrigin: state.retryPending && tailKind === 'reasoning' ? originTime : state.waitOrigin,
+    waitOrigin: state.retryPending && tailKind === 'reasoning' ? time : state.waitOrigin,
     streamTime: time,
     active,
     tailKind,
@@ -209,60 +195,32 @@ function enterToolPhase(state: ReasoningWaitState, time: number): ReasoningWaitS
   }
 }
 
-function chunkTransition(state: ReasoningWaitState, match: ProjectionMatch): ReasoningWaitState {
-  if (match.event.type !== 'assistant/chunk') return state
-  const { chunk } = match.event.data
+function chunkTransition(state: ReasoningWaitState, time: number, chunk: AssistantChunk): ReasoningWaitState {
   switch (chunk.type) {
     case 'block-start':
-      if (chunk.blockType === 'reasoning') return transition(state, match.event.time, 'reasoning', true)
-      if (chunk.blockType === 'text') return transition(state, match.event.time, 'text', false)
-      if (chunk.blockType === 'tool-call') return enterToolPhase(state, match.event.time)
-      return transition(state, match.event.time, 'other', false)
+      if (chunk.blockType === 'reasoning') return transition(state, time, 'reasoning', true)
+      if (chunk.blockType === 'text') return transition(state, time, 'text', false)
+      if (chunk.blockType === 'tool-call') return enterToolPhase(state, time)
+      return transition(state, time, 'other', false)
     case 'reasoning-delta':
-      return transition(state, match.event.time, 'reasoning', true)
+      return transition(state, time, 'reasoning', true)
     case 'text-delta':
-      return transition(state, match.event.time, 'text', false)
+      return transition(state, time, 'text', false)
     case 'tool-call-delta':
-      return enterToolPhase(state, match.event.time)
+      return enterToolPhase(state, time)
     case 'block-end':
-      if (chunk.block.type === 'reasoning') return transition(state, match.event.time, 'reasoning', true)
-      if (chunk.block.type === 'text') return transition(state, match.event.time, 'text', false)
-      if (chunk.block.type === 'tool-call') return enterToolPhase(state, match.event.time)
-      return transition(state, match.event.time, 'other', false)
+      if (chunk.block.type === 'reasoning') return transition(state, time, 'reasoning', true)
+      if (chunk.block.type === 'text') return transition(state, time, 'text', false)
+      if (chunk.block.type === 'tool-call') return enterToolPhase(state, time)
+      return transition(state, time, 'other', false)
     default:
       return state
   }
 }
 
-function compactEndTime(event: CompactChunkEvent): number {
-  return event.data.dt.reduce((time, gap) => time + gap, event.time)
-}
-
-function compactFirstEvidenceTime(event: CompactChunkEvent): number | null {
-  let time = event.time
-  for (let index = 0; index < (event.data.texts?.length ?? 0); index++) {
-    if (event.data.texts?.[index] !== '') return time
-    time += event.data.dt[index] ?? 0
-  }
-  return null
-}
-
-function compactTransition(state: ReasoningWaitState, event: CompactChunkEvent): ReasoningWaitState {
-  const streamTime = compactEndTime(event)
-  if (event.type === 'chunkrow/reasoning-chunks') {
-    const firstEvidenceTime = compactFirstEvidenceTime(event)
-    return firstEvidenceTime === null
-      ? state
-      : transition(state, streamTime, 'reasoning', true, firstEvidenceTime)
-  }
-  if (event.type === 'chunkrow/text-chunks') return transition(state, streamTime, 'text', false)
-  return enterToolPhase(state, streamTime)
-}
-
 function updateState(state: ReasoningWaitState, match: ProjectionMatch): ReasoningWaitState {
-  const event = match.event as ProjectionEvent
-  if (isCompactChunkEvent(event)) return compactTransition(state, event)
-  if (event.type === 'assistant/chunk') return chunkTransition(state, match)
+  const event = match.event
+  if (event.type === 'assistant/live-chunk') return chunkTransition(state, event.time, event.data.chunk)
   if (event.type === 'tool/call') return startTool(state, event)
   if (event.type === 'tool/result') return finishTool(state, event)
   if (event.type === 'llm/retry') {
@@ -280,7 +238,7 @@ function updateState(state: ReasoningWaitState, match: ProjectionMatch): Reasoni
       retryPending: false,
     }
   }
-  if (event.type === 'assistant/message') {
+  if (event.type === 'assistant/message' || event.type === 'assistant/attempt') {
     return { ...state, streamTime: event.time, active: false, retryPending: false }
   }
   if (event.type === 'step/end') {
@@ -313,8 +271,7 @@ export const reasoningWaitDefinition: ProjectionNodeDefinition<ReasoningWaitStat
     }
   },
   update: (context, match) => updateState(context.state, match),
-  publication: match => match.event.type === 'assistant/chunk'
-    || isCompactChunkEvent(match.event as ProjectionEvent)
+  publication: match => match.event.type === 'assistant/live-chunk'
     ? 'animation-frame'
     : 'immediate',
   buildViewNode: (context) => {

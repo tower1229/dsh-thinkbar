@@ -39,11 +39,11 @@ describe('published package contract', () => {
     expect(JSON.stringify(manifest)).not.toContain('./src/')
   })
 
-  it('pins the developer-preview DSH peer surface', () => {
+  it('pins the DSH 0.2 peer surface', () => {
     expect(manifest.peerDependencies).toEqual({
-      '@deepseek-ai/cordis': '4.0.1',
-      '@deepseek-ai/dsh-client-ui-conversation': '0.1.2-alpha.4',
-      '@deepseek-ai/dsh-client-ui-model-selection': '0.1.2-alpha.4',
+      '@deepseek-ai/cordis': '~4.1.0',
+      '@deepseek-ai/dsh-client-ui-conversation': '^0.2.2-rc.1',
+      '@deepseek-ai/dsh-client-ui-model-selection': '^0.2.2-rc.1',
       react: '^18.2.0',
       'react-dom': '^18.2.0',
     })
@@ -51,5 +51,18 @@ describe('published package contract', () => {
       '@deepseek-ai/dsh-client-ui-conversation': { optional: true },
       '@deepseek-ai/dsh-client-ui-model-selection': { optional: true },
     })
+  })
+
+  it('stays compatible with the runtime version the DSH compatibility gate evaluates', async () => {
+    const { satisfies } = await import('semver') as unknown as {
+      satisfies(version: string, range: string, options: { includePrerelease: boolean }): boolean
+    }
+    for (const range of [
+      manifest.peerDependencies['@deepseek-ai/dsh-client-ui-conversation'],
+      manifest.peerDependencies['@deepseek-ai/dsh-client-ui-model-selection'],
+    ]) {
+      expect(satisfies('0.2.2-rc.1', range, { includePrerelease: true })).toBe(true)
+    }
+    expect(satisfies('0.1.2-alpha.4', manifest.peerDependencies['@deepseek-ai/dsh-client-ui-conversation'], { includePrerelease: true })).toBe(false)
   })
 })
